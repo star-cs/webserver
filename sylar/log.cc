@@ -1,8 +1,10 @@
 #include "log.h"
 #include <tuple>
 #include <map>
+#include <fstream>
 #include <iostream>
 #include <time.h>
+#include <stdarg.h>
 
 namespace sylar{
 
@@ -20,7 +22,7 @@ namespace sylar{
 class MessageFormatterItem : public LogFormatter::FormatterItem{
     public:
         MessageFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger,  LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger ,LogEvent::ptr event) override{
             os << event->getContent();
         }
 };
@@ -28,15 +30,15 @@ class MessageFormatterItem : public LogFormatter::FormatterItem{
 class LevelFormatterItem : public LogFormatter::FormatterItem{
     public:
         LevelFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger,  LogLevel::Level level ,LogEvent::ptr event) override{
-            os << LogLevel::ToString(level);
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
+            os << LogLevel::ToString(event->getLevel());
         }
 };
 
 class ElapseFormatterItem : public LogFormatter::FormatterItem{
     public:
         ElapseFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << event->getElapse();
         }
 };
@@ -44,7 +46,7 @@ class ElapseFormatterItem : public LogFormatter::FormatterItem{
 class LoggerNameFormatterItem : public LogFormatter::FormatterItem{
     public:
         LoggerNameFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << logger->getName();
         }
 };
@@ -52,7 +54,7 @@ class LoggerNameFormatterItem : public LogFormatter::FormatterItem{
 class ThreadIdFormatterItem : public LogFormatter::FormatterItem{
     public:
         ThreadIdFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << event->getThreadId();
         }
 };
@@ -60,7 +62,7 @@ class ThreadIdFormatterItem : public LogFormatter::FormatterItem{
 class FiberIdFormatterItem : public LogFormatter::FormatterItem{
     public:
         FiberIdFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << event->getFiberId();
         }
 };
@@ -73,7 +75,7 @@ class DataTimeFormatterItem : public LogFormatter::FormatterItem{
                     m_format = "%Y-%m-%d %H:%M:%S";
                 }
             }
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             // 当前事件获取
             struct tm tm;
             time_t t = event->getTime();
@@ -90,7 +92,7 @@ class DataTimeFormatterItem : public LogFormatter::FormatterItem{
 class FilenameFormatterItem : public LogFormatter::FormatterItem{
     public:
         FilenameFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << event->getFile();
         }
 };
@@ -98,7 +100,7 @@ class FilenameFormatterItem : public LogFormatter::FormatterItem{
 class LineFormatterItem : public LogFormatter::FormatterItem{
     public:
         LineFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << event->getLine();
         }
 };
@@ -106,7 +108,7 @@ class LineFormatterItem : public LogFormatter::FormatterItem{
 class NewLineFormatterItem : public LogFormatter::FormatterItem{
     public:
         NewLineFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << std::endl;
         }
 };
@@ -114,7 +116,7 @@ class NewLineFormatterItem : public LogFormatter::FormatterItem{
 class StringFormatterItem : public LogFormatter::FormatterItem{
     public:
         StringFormatterItem(const std::string& str): m_string(str){}
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << m_string;
         }
     private:
@@ -124,13 +126,31 @@ class StringFormatterItem : public LogFormatter::FormatterItem{
 class TabFormatterItem : public LogFormatter::FormatterItem{
     public:
         TabFormatterItem(const std::string& str = "") {}
-        void format(std::ostream& os, Logger::ptr logger, LogLevel::Level level ,LogEvent::ptr event) override{
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << "\t";
         }
 };
 
-LogEvent::LogEvent(const char* file, int32_t line, uint32_t elapse, uint32_t threadId, uint32_t fiberId , uint64_t time)
-    :m_file(file), m_line(line), m_elapse(elapse), m_threadId(threadId), m_fiberId(fiberId), m_time(time) {}
+LogEvent::LogEvent(const char* file, int32_t line, uint32_t elapse, uint32_t threadId, uint32_t fiberId , uint64_t time , LogLevel::Level level)
+    :m_file(file), m_line(line), m_elapse(elapse), m_threadId(threadId), m_fiberId(fiberId), m_time(time) , m_level(level){
+}
+    
+void LogEvent::format(const char* fmt, ...){
+    va_list al;
+    va_start(al, fmt);
+    format(fmt, al);
+    va_end(al);
+}
+
+void LogEvent::format(const char* fmt, va_list al){
+    char* buf = nullptr;
+    int len = vasprintf(&buf, fmt, al);
+    if(len != -1){
+        m_ss << std::string(buf, len);
+        free(buf);
+    }
+}
+
 
 const char* LogLevel::ToString(LogLevel::Level level){
     switch(level){
@@ -175,60 +195,42 @@ void Logger::delAppender(LogAppender::ptr appender){
     }
 }
 
-void Logger::log(LogLevel::Level level, LogEvent::ptr event){
-    if(level >= m_level){
+void Logger::log(LogEvent::ptr event){
+    if(event->getLevel() >= m_level){
         // todo
         auto self = shared_from_this();
         for(auto& i: m_appenders){
-            i->log(self, level, event);
+            i->log(self, event);
         }
     }
 }
 
-void Logger::debug(LogEvent::ptr event){
-    log(LogLevel::DEBUG, event);
-}
-
-void Logger::info(LogEvent::ptr event){
-    log(LogLevel::INFO, event);
-}
-
-void Logger::warn(LogEvent::ptr event){
-    log(LogLevel::WARN, event);
-}
-
-void Logger::error(LogEvent::ptr event){
-    log(LogLevel::ERROR, event);
-}
-
-void Logger::fatal(LogEvent::ptr event){
-    log(LogLevel::FATAL, event);
-}
-
-
-void StdoutLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event){
-    if(level >= m_level){
-        std::cout << m_formatter->format(logger, level, event);
+void StdoutLogAppender::log(Logger::ptr logger, LogEvent::ptr event){
+    if(event->getLevel() >= m_level){
+        std::cout << m_formatter->format(logger, event);
     }
 }
 
 FileLogAppender::FileLogAppender(const std::string& filename)
-    : m_filename(filename){    
+    : m_filename(filename){ 
+    // 相当于创建文件 或 清空文件
+    m_filestream.open(m_filename);
 }
 
 bool FileLogAppender::reopen(){
     if(m_filestream){
         m_filestream.close();
     }
-    m_filestream.open(m_filename);
+    //追加写入,在原来基础上加了ios::app 
+    m_filestream.open(m_filename, std::ios::out | std::ios::app);
     return !!m_filestream;
 }
 
-void FileLogAppender::log(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event){
-    if(level >= m_level){
+void FileLogAppender::log(std::shared_ptr<Logger> logger, LogEvent::ptr event){
+    if(event->getLevel() >= m_level){
         int res = reopen();
         if(res){
-            m_filestream << m_formatter->format(logger , level , event);
+            m_filestream << m_formatter->format(logger , event);
         }else{
             std::cout << "<<error filename"  + m_filename + ">>" << std::endl;
         }
@@ -242,11 +244,11 @@ LogFormatter::LogFormatter(const std::string& pattern)
     init();
 }
 
-std::string LogFormatter::format(std::shared_ptr<Logger> logger, LogLevel::Level level , LogEvent::ptr event){
+std::string LogFormatter::format(std::shared_ptr<Logger> logger, LogEvent::ptr event){
     // TODO
     std::stringstream ss;
     for(auto& it : m_items){
-        it->format(ss, logger, level, event);
+        it->format(ss, logger, event);
     }
     return ss.str();
 }
@@ -396,8 +398,32 @@ void LogFormatter::init(){
     }
 }
 
+LogEventWrap::LogEventWrap(Logger::ptr logger, LogEvent::ptr event)
+    :m_logger(logger), m_event(event){
 
+}
 
+LogEventWrap::~LogEventWrap(){
+    m_logger->log(m_event);
+}
+
+LoggerManager::LoggerManager(){
+    m_root.reset(new Logger);
+    // 默认是输出std，如果 m_loggers 为空，默认使用 m_root
+    sylar::LogFormatter::ptr fmt(new sylar::LogFormatter("%d{%Y-%m-%d %H:%M:%S}%T%t%T%F%T[%p]%T[%c]%T%f:%l%T[%m]%n"));
+    LogAppender::ptr appender(new StdoutLogAppender);
+    appender->setFormatter(fmt);
+    m_root->addAppender(appender);
+}
+
+Logger::ptr LoggerManager::getLogger(const std::string& name){
+    auto it = m_loggers.find(name);
+    return it == m_loggers.end() ? m_root : it->second;
+}
+
+void LoggerManager::init(){
+
+}
 
 
 };// namespace sylar
