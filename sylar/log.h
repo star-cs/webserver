@@ -36,7 +36,7 @@
 #define SYLAR_LOG_FMT_ERROR(logger, format, ...) SYLAR_LOG_FMT_LEVEL(logger, sylar::LogLevel::ERROR, format, __VA_ARGS__)
 #define SYLAR_LOG_FMT_FATAL(logger, format, ...) SYLAR_LOG_FMT_LEVEL(logger, sylar::LogLevel::FATAL, format, __VA_ARGS__)                                                                      
 
-#define SYLAR_ROOT() sylar::LoggerMgr::GetInstance()->getRoot()
+#define SYLAR_LOG_ROOT() sylar::LoggerMgr::GetInstance()->getRoot()
 
 namespace sylar{
 

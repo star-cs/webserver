@@ -39,6 +39,7 @@ build
 lib
 
 # bin
+bin/conf/test.yml
 test_config
 test_env
 test_log
@@ -65,3 +66,6 @@ test_daemon
 # log
 system.txt
 log.txt
+
+# vscode
+.vscode
