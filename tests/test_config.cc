@@ -88,6 +88,10 @@ public:
         ss << "[person:  name:" << name << "agg:" << age << "man:" << man << "]";
         return ss.str(); 
     }
+
+    bool operator==(const Person& person) const{
+        return age == person.age && name == person.name && man == person.man;
+    }
 };
 
 namespace sylar{
@@ -133,6 +137,10 @@ void test_class(){
             SYLAR_LOG_INFO(SYLAR_LOG_ROOT()) << #name " " #prefix " : " << it.first << " - " << it.second.toString(); \
         } \
     }
+
+    g_person->addListener(66, [](const Person& old_value , const Person& new_value){
+        SYLAR_LOG_INFO(SYLAR_LOG_ROOT()) << old_value.toString() << " " << new_value.toString();
+    });
 
     XX(g_map_person, map_person, after)
 

@@ -9,6 +9,7 @@
 #include <boost/lexical_cast.hpp>       // 字符串与目标类型之间的转换
 #include <iostream>
 #include <yaml-cpp/yaml.h>
+#include <functional>
 
 #include <vector>
 #include <list>
@@ -278,6 +279,7 @@ template<class T, class FromString = LexicalCast<std::string, T>
 class ConfigVar : public ConfigVarBase{
 public:
     typedef std::shared_ptr<ConfigVar> ptr;
+    typedef std::function<void (const T& old_value, const T& new_value)> on_change_cb;
 
     ConfigVar(const std::string& name, const T& val, const std::string& description = "")
     : ConfigVarBase(name, description), m_val(val){
@@ -306,11 +308,35 @@ public:
     }
 
     const T getValue() const {return m_val;}
-    void setValue(const T& val) {m_val = val;}
+
+    void setValue(const T& val) {
+        if(val == m_val){   // T 类型 需要 operator==
+            return;
+        }
+        for(auto& it : m_cbs){
+            it.second(m_val, val);  // 调用相关的事件更改 通知 仿函数。
+        }
+        m_val = val;
+    }
 
     std::string getTypeName() const override {return typeid(m_val).name();}
+
+    void addListener(uint64_t key , on_change_cb fun){
+        m_cbs[key] = fun;
+    }
+
+    on_change_cb getListener(uint64_t key){
+        auto it = m_cbs.find(key);
+        return it == nullptr ? nullptr : it->second;
+    }
+
+    void delListener(uint64_t key){
+        m_cbs.erase(key);
+    }
 private:
     T m_val;
+    // 需要一个map，管理不同多个的 事件通知函数
+    std::map<uint64_t, on_change_cb> m_cbs; 
 };
 
 /**
