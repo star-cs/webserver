@@ -353,8 +353,8 @@ public:
     static typename ConfigVar<T>::ptr Lookup(const std::string& name, 
         const T& default_value, const std::string& description = ""){
         // auto temp = Lockup<T>(name);   
-        auto it = s_datas.find(name);
-        if(it != s_datas.end()){
+        auto it = GetDatas().find(name);
+        if(it != GetDatas().end()){
             auto temp = std::dynamic_pointer_cast<ConfigVar<T> >(it->second);
             if(temp){
                 SYLAR_LOG_INFO(SYLAR_LOG_ROOT()) << "Lookup name = " << name << " exists";
@@ -374,15 +374,15 @@ public:
         
         //初始化 新的 键值对
         typename ConfigVar<T>::ptr v(new ConfigVar<T>(name, default_value, description));
-        s_datas[name] = v;
+        GetDatas()[name] = v;
         return v;
     }
 
     // 
     template <class T>
     static typename ConfigVar<T>::ptr Lockup(const std::string& name){
-        auto it = s_datas.find(name);
-        if(it == s_datas.end()){
+        auto it = GetDatas().find(name);
+        if(it == GetDatas().end()){
             return nullptr;
         }
         return std::dynamic_pointer_cast<ConfigVar<T>>(it->second);
@@ -392,7 +392,10 @@ public:
     static ConfigVarBase::ptr LookupBase(const std::string& name);
 
 private:
-    static ConfigVarMap s_datas;  
+    static ConfigVarMap& GetDatas(){
+        static ConfigVarMap s_datas;
+        return s_datas;
+    }  
 };
 
 }; // namespace sylar

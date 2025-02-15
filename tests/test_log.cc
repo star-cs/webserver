@@ -3,6 +3,7 @@
 #include "../sylar/util.h"
 
 int main(int argc, char** argv){
+    #if 0
     sylar::Logger::ptr logger(new sylar::Logger);
 
     sylar::LogFormatter::ptr fmt(new sylar::LogFormatter("%d{%Y-%m-%d %H:%M:%S}%T%t%T%F%T[%p]%T[%c]%T%f:%l%T[%m]%n"));
@@ -28,6 +29,7 @@ int main(int argc, char** argv){
     auto l = sylar::LoggerMgr::GetInstance()->getLogger("xxx");
     //这个时候，l的logger里的appender使用默认的，因为没有创建 xxx 的logger
     SYLAR_LOG_INFO(l) << "xxx";
+    #endif
 
     return 0;   
 }

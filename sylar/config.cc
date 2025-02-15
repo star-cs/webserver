@@ -3,7 +3,7 @@
 #include <sstream>
 namespace sylar{
     
-Config::ConfigVarMap Config::s_datas;
+// Config::ConfigVarMap Config::s_datas;    即使是这样，s_datas静态的初始化可能还是会晚于Lookup
 
 static void ListAllMember(const std::string& prefix,
                             const YAML::Node& node,
@@ -24,8 +24,8 @@ static void ListAllMember(const std::string& prefix,
     }
 } 
 ConfigVarBase::ptr Config::LookupBase(const std::string& name){
-    auto it = s_datas.find(name);
-    return it == s_datas.end() ? nullptr : it->second;
+    auto it = GetDatas().find(name);
+    return it == GetDatas().end() ? nullptr : it->second;
 }
 
 void Config::LoadFromYaml(const YAML::Node& root){
@@ -52,9 +52,5 @@ void Config::LoadFromYaml(const YAML::Node& root){
         }
     }
 }
-
-
-
-
 
 } // namespace sylar

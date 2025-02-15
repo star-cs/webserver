@@ -75,7 +75,7 @@ void test_config(){
     XXM(g_str_int_map_value_config, str_int_map, after)
     XXM(g_str_int_unordered_map_value_config, str_int_unordered_map, after)
 }
-#endif 
+
 
 class Person{
 public: 
@@ -151,9 +151,20 @@ void test_class(){
 
     SYLAR_LOG_INFO(SYLAR_LOG_ROOT()) << g_person->getValue().toString();
 }
+#endif 
+
+void test_log(){
+    YAML::Node node = YAML::LoadFile("/home/yang/projects/webserver/bin/conf/log.yml");
+    sylar::Config::LoadFromYaml(node);
+    std::cout << SYLAR_Log_YAML2String() << std::endl;
+    SYLAR_LOG_INFO(SYLAR_LOG_NAME("root")) << "root log";
+    SYLAR_LOG_INFO(SYLAR_LOG_NAME("system")) << "system log"; 
+    SYLAR_LOG_ERROR(SYLAR_LOG_NAME("system")) << "error_log";
+}
 
 int main(int argc, char** argv){
     // test_config();
-    test_class();
+    // test_class();
+    test_log();
     return 0;
 }
