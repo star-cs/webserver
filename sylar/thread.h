@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <memory>
+#include "mutex.h"
 
 namespace sylar{
 
@@ -42,6 +43,7 @@ private:
     // 线程名
     std::string m_name;
 
+    Semaphore m_semaphore;
 };
 
 }

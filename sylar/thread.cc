@@ -28,6 +28,8 @@ Thread::Thread(std::function<void()> cb, const std::string& name) :m_cb(cb), m_n
                                   << " name = " << m_name;
         throw std::logic_error("pthread_create error");
     }
+
+    m_semaphore.wait(); // 条件变量，主线程一直等着所有线程创建完毕
 }
 
 Thread::~Thread(){
@@ -64,6 +66,8 @@ void* Thread::run(void* args){
 
     std::function<void()> cb;
     cb.swap(thread->m_cb);
+
+    thread->m_semaphore.notify();   // 通知传入的 线程，相当于是通知主线程，线程创建完成。
 
     cb();
     return 0;
