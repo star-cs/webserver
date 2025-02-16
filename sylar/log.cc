@@ -335,6 +335,8 @@ void LogFormatter::init(){
     // <符号,子串,类型>  类型0-普通字符串 类型1-可被解析的字符串
     std::vector<std::tuple<std::string, std::string, int>> vec;
     std::string nstr;
+    // 是否解析出错
+    bool error = false;
 
     for(size_t i = 0 ; i < m_pattern.size() ; ++i){
         // 如果不是%，添加到 nstr
@@ -407,7 +409,13 @@ void LogFormatter::init(){
             // 没有找到与'{'相对应的'}' 所以解析报错，格式错误
             std::cout << "pattern parse error:" << m_pattern << " - " << m_pattern.substr(i) << std::endl;
             vec.push_back(std::make_tuple("<<pattern_error>>", fmt, 0));
+            error = true;
         }
+    }
+
+    if(error){
+        m_error = true;
+        return;
     }
 
     //结尾 判断普通字符串
@@ -462,12 +470,17 @@ void LogFormatter::init(){
             auto it = s_format_items.find(std::get<0>(i));
             if(it == s_format_items.end()){
                 m_items.push_back(FormatterItem::ptr(new StringFormatterItem("<< error_format %" + std::get<1>(i) + ">>")));
+                error = true;
             } else {
                 m_items.push_back(it->second(std::get<1>(i)));
             }
         }
-        
         // std::cout << std::get<0>(i) << " - " <<  std::get<1>(i) << " - " << std::get<2>(i) << std::endl;
+    }
+
+    if(error){
+        m_error = true;
+        return;
     }
 }
 
@@ -482,8 +495,10 @@ LogEventWrap::~LogEventWrap(){
 
 LoggerManager::LoggerManager(){
     m_root.reset(new Logger);               // 默认构造Logger，此时level是UNKNOW最低
-    m_root->addAppender(LogAppender::ptr(   // 默认是输出std，跟随m_root的level，以及使用默认的格式器
-            new StdoutLogAppender(m_root->getLevel(), LogFormatter::ptr(new LogFormatter()))));  
+    // 默认是输出std，跟随m_root的level，以及使用默认的格式器
+    m_root->addAppender(LogAppender::ptr(new StdoutLogAppender(m_root->getLevel(), LogFormatter::ptr(new LogFormatter()))));  
+    m_loggers[m_root->getName()] = m_root;  // 添加到m_loggers
+    // 后续，配置项发送改变，能改变这个。
 }
 
 /**
@@ -665,10 +680,14 @@ struct LogIniter{
                     LogLevel::Level ll = a.level;
                     LogFormatter::ptr lap;
                     if(!a.pattern.empty()){
-                        lap = LogFormatter::ptr(new LogFormatter(a.pattern));
+                        lap.reset(new LogFormatter(a.pattern));
+                        if(lap->isError()){ // 如果日志格式有错误
+                            std::cout << "< formatter pattern error : " << i.name << " " << a.type << " " << a.pattern << " > " << std::endl;
+                            lap.reset(new LogFormatter); // 此时使用默认的。
+                        }
                     } else {
                         // 当没有 pattern，那么默认构造的时候，pattern有默认格式赋值。
-                        lap = (LogFormatter::ptr(new LogFormatter));
+                        lap.reset(new LogFormatter);
                     }
 
                     if(a.type == 1){

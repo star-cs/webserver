@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 2.8)
 project(sylar)
 
+include (cmake/utils.cmake)
+
 set(CMAKE_VERBOSE_MAKEFILE ON)
-set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} -rdynamic -O0 -ggdb -std=c++11 -Wall -Wno-deprecated -Werror -Wno-unused-function")
+set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} -rdynamic -O0 -ggdb -std=c++11 -Wall -Wno-builtin-macro-redefined -Wno-deprecated -Werror -Wno-unused-function")
 
 # 头文件
 include_directories(.)
@@ -17,16 +19,16 @@ set(LIB_SRC
     )
 
 add_library(sylar SHARED ${LIB_SRC})
+force_redefine_file_macro_for_sources(sylar)
 
-# 确保在链接 sylar 库时包含 yaml-cpp 库
-target_link_libraries(sylar ${YAMLCPP})
+set(LIBS
+    sylar
+    yaml-cpp
+)
 
+sylar_add_executable(test_log "tests/test_log.cc" sylar "${LIBS}")
+sylar_add_executable(test_config "tests/test_config.cc" sylar "${LIBS}")
 
-add_executable(test_log tests/test_log.cc)
-target_link_libraries(test_log sylar)
-
-add_executable(test_config tests/test_config.cc)
-target_link_libraries(test_config sylar)
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)

@@ -154,8 +154,10 @@ void test_class(){
 #endif 
 
 void test_log(){
+    std::cout << SYLAR_Log_YAML2String() << std::endl;
     YAML::Node node = YAML::LoadFile("/home/yang/projects/webserver/bin/conf/log.yml");
     sylar::Config::LoadFromYaml(node);
+    std::cout << "=================================" << std::endl;
     std::cout << SYLAR_Log_YAML2String() << std::endl;
     SYLAR_LOG_INFO(SYLAR_LOG_NAME("root")) << "root log";
     SYLAR_LOG_INFO(SYLAR_LOG_NAME("system")) << "system log"; 

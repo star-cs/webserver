@@ -99,8 +99,32 @@ class LogEvent{
 class LogFormatter{
     public:
         typedef std::shared_ptr<LogFormatter> ptr;
+        /**
+         * @brief 构造函数
+         * @param[in] pattern 格式模板，参考sylar与log4cpp
+         * @details 模板参数说明：
+         * - %%m 消息
+         * - %%p 日志级别
+         * - %%c 日志器名称
+         * - %%d 日期时间，后面可跟一对括号指定时间格式，比如%%d{%%Y-%%m-%%d %%H:%%M:%%S}，这里的格式字符与C语言strftime一致
+         * - %%r 该日志器创建后的累计运行毫秒数
+         * - %%f 文件名
+         * - %%l 行号
+         * - %%t 线程id
+         * - %%F 协程id
+         * - %%N 线程名称
+         * - %%% 百分号
+         * - %%T 制表符
+         * - %%n 换行
+         * 
+         * 默认格式：%%d{%%Y-%%m-%%d %%H:%%M:%%S}%%T%%t%%T%%N%%T%%F%%T[%%p]%%T[%%c]%%T%%f:%%l%%T%%m%%n
+         * 
+         * 默认格式描述：年-月-日 时:分:秒 [累计运行毫秒数] \\t 线程id \\t 线程名称 \\t 协程id \\t [日志级别] \\t [日志器名称] \\t 文件名:行号 \\t 日志消息 换行符
+         */
         LogFormatter(const std::string& pattern = "%d{%Y-%m-%d %H:%M:%S}%T%t%T%F%T[%p]%T[%c]%T%f:%l%T[%m]%n");
         std::string format(std::shared_ptr<Logger> logger, LogEvent::ptr event);
+        void init();                                // 解析模板字符串
+        bool isError() const {return m_error;}
         std::string getPattern(){return m_pattern;}
     public:
         class FormatterItem{
@@ -110,10 +134,10 @@ class LogFormatter{
                 virtual void format(std::ostream& os, std::shared_ptr<Logger> logger ,LogEvent::ptr event) = 0;
         };
 
-        void init();                                // 解析模板字符串
     private:
         std::string m_pattern;                      // 模板字符串 "%d{%Y-%m-%d %H:%M:%S}%T%t%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
         std::vector<FormatterItem::ptr> m_items;    // 存储每一个日志类型的输出子类
+        bool m_error = false;
 };
 
 //日志输出器
