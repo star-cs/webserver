@@ -5,6 +5,9 @@
 namespace sylar{
 
 // 方便 后续可以在其他地方访问当前线程的信息。
+
+// 非局部 thread_local 变量的初始化是线程启动的一部分，发生在线程函数执行之前。~
+// 只有当第一次使用的时候，才会被初始化。 ~
 static thread_local Thread *t_thread = nullptr;
 static thread_local std::string t_thread_name = "UNKNOW";
 
@@ -28,7 +31,7 @@ Thread::Thread(std::function<void()> cb, const std::string& name) :m_cb(cb), m_n
                                   << " name = " << m_name;
         throw std::logic_error("pthread_create error");
     }
-
+ 
     m_semaphore.wait(); // 条件变量，主线程一直等着所有线程创建完毕
 }
 

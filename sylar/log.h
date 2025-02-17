@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <map>
 #include "singleton.h"
+#include "mutex.h"
 
 #define SYLAR_LOG_LEVEL(logger, level) \
     if(logger->getLevel() <= level) \
@@ -144,18 +145,21 @@ class LogFormatter{
 class LogAppender{
     public:
         typedef std::shared_ptr<LogAppender> ptr;
+        typedef SpinkLock MutexType;
+
         LogAppender(LogLevel::Level level, LogFormatter::ptr formatter);
         virtual ~LogAppender(){}
         //纯虚函数
         virtual void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) = 0;
         virtual std::string toYamlString() = 0;
         void setLevel(LogLevel::Level level){m_level = level;}
-        void setFormatter(LogFormatter::ptr val){m_formatter = val;}
-        LogFormatter::ptr getFormatter(){return m_formatter;}
+        void setFormatter(LogFormatter::ptr val);
+        LogFormatter::ptr getFormatter();
     
     protected:
         LogLevel::Level m_level;
         LogFormatter::ptr m_formatter;      //通过这个类，对日志进行格式化
+        MutexType m_mutex;
 };
 
 //输出到控制台
@@ -176,11 +180,15 @@ public:
     std::string toYamlString();
     void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) override;
     
-    //重新打开文件
-    bool reopen();
+    // 重新打开文件
+    // 如果 当前的日志事件 比 上一个日志事件 超过 interval 秒，就重新打开一次日志文件。把缓存写入。也避免线程间频繁开关 文件。
+    // 当 interval = 0时，直接重新打开文件。
+    bool reopen(uint64_t now, uint64_t interval = 3);
 private:
     std::string m_filename;
     std::ofstream m_filestream;     //#include <fstream>
+    bool m_reopenError; 
+    uint64_t m_lastTime;              // 文件最近一次打开的事件 事件
 };
 
 
@@ -189,6 +197,7 @@ private:
 class Logger : public std::enable_shared_from_this<Logger>{
     public:
         typedef std::shared_ptr<Logger> ptr;
+        typedef SpinkLock MutexType;
 
         Logger(const std::string name = "root");
         void log(LogEvent::ptr event);
@@ -206,6 +215,7 @@ class Logger : public std::enable_shared_from_this<Logger>{
         std::string m_name;                         //日志名称
         LogLevel::Level m_level;                    //日志级别，当事件的日志级别大于等于该日志器的级别时，才输出
         std::list<LogAppender::ptr> m_appenders;    //Appender集合
+        MutexType m_mutex;
 };
 
 // 使用LogEventWarp管理 event和logger，在析构的时候，调用logger的方法 流式输出 event
@@ -222,12 +232,14 @@ class LogEventWrap{
 
 class LoggerManager{
     public:
+        typedef SpinkLock MutexType;
         LoggerManager();
         Logger::ptr getLogger(const std::string& name);
         Logger::ptr getRoot(){return m_root;}
         void init();
         std::string toYamlString(); // 将实例序列化
     private:
+        MutexType m_mutex;
         std::map<std::string, Logger::ptr> m_loggers;
         Logger::ptr m_root;
 };

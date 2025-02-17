@@ -1,0 +1,8 @@
+logs:
+    - name: root
+      level: info
+      appenders:
+          - type: FileLogAppender
+            pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
+            file: /home/yang/projects/webserver/tests/root2.txt
+  
