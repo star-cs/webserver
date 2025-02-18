@@ -19,6 +19,7 @@
 #include <unordered_set>
 
 #include "util.h"
+#include "mutex.h"
 
 namespace sylar
 {
@@ -280,6 +281,7 @@ class ConfigVar : public ConfigVarBase{
 public:
     typedef std::shared_ptr<ConfigVar> ptr;
     typedef std::function<void (const T& old_value, const T& new_value)> on_change_cb;
+    typedef RWMutex RWMutexType;
 
     ConfigVar(const std::string& name, const T& val, const std::string& description = "")
     : ConfigVarBase(name, description), m_val(val){
@@ -288,7 +290,7 @@ public:
 
     std::string toString() override{
         try{
-            return ToString()(m_val);
+            return ToString()(getValue());
         }catch(std::exception& e){
             SYLAR_LOG_ERROR(SYLAR_LOG_ROOT()) << "ConfigVar::toString exception"
                     << e.what() << " convert: " << typeid(m_val).name() << " to string";
@@ -307,36 +309,54 @@ public:
         return false;
     }
 
-    const T getValue() const {return m_val;}
+    const T getValue() {
+        RWMutexType::ReadLock lock(m_mutex);
+        return m_val;
+    }
 
     void setValue(const T& val) {
-        if(val == m_val){   // T 类型 需要 operator==
-            return;
+        {
+            RWMutexType::ReadLock lock(m_mutex);
+            if(val == m_val){   // T 类型 需要 operator==
+                return;
+            }
+            for(auto& it : m_cbs){
+                it.second(m_val, val);  // 调用相关的事件更改 通知 仿函数。
+            }
         }
-        for(auto& it : m_cbs){
-            it.second(m_val, val);  // 调用相关的事件更改 通知 仿函数。
-        }
+        RWMutexType::WriteLock lock(m_mutex);
         m_val = val;
     }
 
     std::string getTypeName() const override {return typeid(m_val).name();}
 
-    void addListener(uint64_t key , on_change_cb fun){
-        m_cbs[key] = fun;
+    int addListener(on_change_cb fun){
+        static uint64_t num = 0;
+        RWMutexType::WriteLock lock(m_mutex);
+        m_cbs[++num] = fun;
+        return num;
     }
 
     on_change_cb getListener(uint64_t key){
+        RWMutexType::ReadLock lock(m_mutex);
         auto it = m_cbs.find(key);
         return it == nullptr ? nullptr : it->second;
     }
 
     void delListener(uint64_t key){
+        RWMutexType::WriteLock lock(m_mutex);
         m_cbs.erase(key);
+    }
+
+    void clearListener() {
+        RWMutexType::WriteLock lock(m_mutex);
+        m_cbs.clear();
     }
 private:
     T m_val;
     // 需要一个map，管理不同多个的 事件通知函数
     std::map<uint64_t, on_change_cb> m_cbs; 
+    RWMutexType m_mutex;
 };
 
 /**
@@ -348,11 +368,12 @@ public:
     // 如果改成 string : ConfigVar<T> 就只能是 T 单一类型了。
     // 所以 map 的键值不能为模板类，需要一个基类
     typedef std::map<std::string, ConfigVarBase::ptr> ConfigVarMap;
-
+    typedef RWMutex RWMutexType;
     template<class T>
     static typename ConfigVar<T>::ptr Lookup(const std::string& name, 
         const T& default_value, const std::string& description = ""){
-        // auto temp = Lockup<T>(name);   
+        // 这里使用写锁，因为查找目标日志，并根据情况返回或初始化。是一整个事务操作。
+        RWMutexType::WriteLock lock(GetMutex());
         auto it = GetDatas().find(name);
         if(it != GetDatas().end()){
             auto temp = std::dynamic_pointer_cast<ConfigVar<T> >(it->second);
@@ -378,24 +399,22 @@ public:
         return v;
     }
 
-    // 
-    template <class T>
-    static typename ConfigVar<T>::ptr Lockup(const std::string& name){
-        auto it = GetDatas().find(name);
-        if(it == GetDatas().end()){
-            return nullptr;
-        }
-        return std::dynamic_pointer_cast<ConfigVar<T>>(it->second);
-    }
-
     static void LoadFromYaml(const YAML::Node& root);
     static ConfigVarBase::ptr LookupBase(const std::string& name);
+    static void Visit(std::function<void(ConfigVarBase::ptr)> cb);      // 传入仿函数，用于操作s_datas
 
 private:
     static ConfigVarMap& GetDatas(){
         static ConfigVarMap s_datas;
         return s_datas;
-    }  
+    } 
+
+    static RWMutexType& GetMutex(){
+        static RWMutexType m_mutex;
+        return m_mutex;
+    }
+
+
 };
 
 }; // namespace sylar

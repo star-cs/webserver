@@ -5,5 +5,6 @@
 #include "util.h"
 #include "config.h"
 #include "thread.h"
+#include "mutex.h"
 
 #endif

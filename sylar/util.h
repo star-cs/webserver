@@ -34,8 +34,6 @@ std::string GetThreadName();
  */
 void SetThreadName(const std::string &name);
 
-
-
 }
 
 #endif
