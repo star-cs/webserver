@@ -3,7 +3,7 @@
 #include "sylar/util.h"
 #include <yaml-cpp/yaml.h>
 
-#if 0
+#if 1
 // 这里 就是 意味着 在 Config.s_datas里添加了  "server.port"字符串  ConfigVar<int>的实例 键值对
 sylar::ConfigVar<int>::ptr g_int_value_config = 
     sylar::Config::Lookup("server.port", (int)8080, "server port");
@@ -75,8 +75,9 @@ void test_config(){
     XXM(g_str_int_map_value_config, str_int_map, after)
     XXM(g_str_int_unordered_map_value_config, str_int_unordered_map, after)
 }
+#endif
 
-
+#if 0
 class Person{
 public: 
     std::string name = "";
@@ -123,7 +124,9 @@ public:
 }; 
 
 }
+#endif 
 
+#if 0
 void test_class(){
     sylar::ConfigVar<Person>::ptr g_person = sylar::Config::Lookup<Person>("class.person", Person(), "class person");
     sylar::ConfigVar<std::map<std::string, Person> >::ptr g_map_person = sylar::Config::Lookup<std::map<std::string, Person> >("class.map_person", std::map<std::string , Person>(), "class map_person");
@@ -138,7 +141,7 @@ void test_class(){
         } \
     }
 
-    g_person->addListener(66, [](const Person& old_value , const Person& new_value){
+    g_person->addListener([](const Person& old_value , const Person& new_value){
         SYLAR_LOG_INFO(SYLAR_LOG_ROOT()) << old_value.toString() << " " << new_value.toString();
     });
 
@@ -162,6 +165,12 @@ void test_log(){
     SYLAR_LOG_INFO(SYLAR_LOG_NAME("root")) << "root log";
     SYLAR_LOG_INFO(SYLAR_LOG_NAME("system")) << "system log"; 
     SYLAR_LOG_ERROR(SYLAR_LOG_NAME("system")) << "error_log";
+    sylar::Config::Visit([](sylar::ConfigVarBase::ptr var){
+        SYLAR_LOG_INFO(SYLAR_LOG_ROOT()) << "name=" << var->getName()
+                        << " description=" << var->getDescription()
+                        << " typename=" << var->getTypeName()
+                        << " value=" << var->toString();
+    });
 }
 
 int main(int argc, char** argv){

@@ -685,7 +685,7 @@ struct LogIniter{
         /**
          * 这个函数是，真正的，根据Define的结构体，创建相应的logger，appender。
          */
-        g_log_defines->addListener(0x3f3f3f3f, [](const std::set<LogDefine>& old_log, const std::set<LogDefine>& new_log){
+        g_log_defines->addListener([](const std::set<LogDefine>& old_log, const std::set<LogDefine>& new_log){
             // std::cout << "测试 仿函数调用" << std::endl;
             // 新增
             // 修改
