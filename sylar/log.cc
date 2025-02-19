@@ -7,7 +7,7 @@
 #include <stdarg.h>
 
 #include "config.h"
-
+#include "thread.h"
 namespace sylar{
 
 /**
@@ -58,6 +58,14 @@ class ThreadIdFormatterItem : public LogFormatter::FormatterItem{
         ThreadIdFormatterItem(const std::string& str = "") {}
         void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
             os << event->getThreadId();
+        }
+};
+
+class ThreadNameFormatterItem : public LogFormatter::FormatterItem{
+    public:
+        ThreadNameFormatterItem(const std::string& str = "") {}
+        void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
+            os << Thread::GetName();
         }
 };
 
@@ -135,8 +143,8 @@ class TabFormatterItem : public LogFormatter::FormatterItem{
 
 // LogEvent
 
-LogEvent::LogEvent(const char* file, int32_t line, uint32_t elapse, uint32_t threadId, uint32_t fiberId , uint64_t time , LogLevel::Level level)
-    :m_file(file), m_line(line), m_elapse(elapse), m_threadId(threadId), m_fiberId(fiberId), m_time(time) , m_level(level){
+LogEvent::LogEvent(const char* file, int32_t line, uint32_t elapse, uint32_t threadId, const std::string& threadName, uint32_t fiberId , uint64_t time , LogLevel::Level level)
+    :m_file(file), m_line(line), m_elapse(elapse), m_threadId(threadId), m_threadName(threadName), m_fiberId(fiberId), m_time(time) , m_level(level){
 }
     
 void LogEvent::format(const char* fmt, ...){
@@ -459,6 +467,7 @@ void LogFormatter::init(){
      * %r -- 启动后的时间
      * %c -- 日志名称
      * %t -- 线程id
+     * %N -- 线程name
      * %F -- 协程id
      * %l -- 行号
      * %d -- 时间
@@ -479,6 +488,7 @@ void LogFormatter::init(){
         XX(r , ElapseFormatterItem),
         XX(c , LoggerNameFormatterItem),
         XX(t , ThreadIdFormatterItem),
+        XX(N , ThreadNameFormatterItem),
         XX(F , FiberIdFormatterItem),
         XX(l , LineFormatterItem),
         XX(d , DataTimeFormatterItem),
@@ -541,6 +551,8 @@ Logger::ptr LoggerManager::getLogger(const std::string& name){
         return it->second;
     }
     Logger::ptr logger(new Logger(name));
+    // 添加一个默认的 std 输出器
+    logger->addAppender(LogAppender::ptr(new StdoutLogAppender(m_root->getLevel(), LogFormatter::ptr(new LogFormatter()))));
     m_loggers[name] = logger;
     return logger;
 }

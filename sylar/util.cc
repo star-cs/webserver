@@ -2,7 +2,7 @@
 #include <execinfo.h>
 #include <stdlib.h>
 #include "log.h"
-
+#include "fiber.h"
 sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 
 namespace sylar{
@@ -11,7 +11,7 @@ namespace sylar{
     }
 
     uint64_t GetFiberId(){
-        return 0;
+        return Fiber::GetFiberId();
     }
 
     std::string GetThreadName(){

@@ -12,10 +12,14 @@
 #include <map>
 #include "singleton.h"
 #include "mutex.h"
+#include "thread.h"
 
 #define SYLAR_LOG_LEVEL(logger, level) \
     if(logger->getLevel() <= level) \
-        sylar::LogEventWrap(logger, sylar::LogEvent::ptr(new sylar::LogEvent(__FILE__, __LINE__, 0 , sylar::GetThreadId(), sylar::GetFiberId(), time(0), level))).getSS() 
+        sylar::LogEventWrap(logger, sylar::LogEvent::ptr( \
+            new sylar::LogEvent(__FILE__, __LINE__, 0 , \
+                            sylar::GetThreadId(), sylar::Thread::GetName(), \
+                            sylar::GetFiberId(), time(0), level))).getSS() 
 
 
 #define SYLAR_LOG_DEBUG(logger) SYLAR_LOG_LEVEL(logger, sylar::LogLevel::DEBUG)
@@ -67,12 +71,13 @@ class LogLevel{
 class LogEvent{
     public:
         typedef std::shared_ptr<LogEvent> ptr;      //使用ptr，就避免了对象的复制和拷贝
-        LogEvent(const char* file, int32_t line, uint32_t elapse, uint32_t threadId, uint32_t fiberId , uint64_t time, LogLevel::Level level);
+        LogEvent(const char* file, int32_t line, uint32_t elapse, uint32_t threadId, const std::string& threadName, uint32_t fiberId , uint64_t time, LogLevel::Level level);
          
         const char* getFile() const {return m_file;}
         int32_t getLine() const {return m_line;}
         uint32_t getElapse() const {return m_elapse;}
         uint32_t getThreadId() const {return m_threadId;}
+        std::string getThreadName() const {return m_threadName;}
         uint32_t getFiberId() const {return m_fiberId;}
         uint64_t getTime() const {return m_time;}
         std::string getContent() const {return m_ss.str();}
@@ -88,10 +93,11 @@ class LogEvent{
         int32_t m_line = 0;             //行号
         uint32_t m_elapse = 0;          //程序启动到现在的毫秒数
         uint32_t m_threadId = 0;        //线程
+        std::string m_threadName;       //线程名
         uint32_t m_fiberId = 0;         //协程
         uint64_t m_time = 0;            //时间戳
         std::stringstream m_ss;
-        LogLevel::Level m_level;               //日志级别
+        LogLevel::Level m_level;        //日志级别
 };
 
 
@@ -122,7 +128,7 @@ class LogFormatter{
          * 
          * 默认格式描述：年-月-日 时:分:秒 [累计运行毫秒数] \\t 线程id \\t 线程名称 \\t 协程id \\t [日志级别] \\t [日志器名称] \\t 文件名:行号 \\t 日志消息 换行符
          */
-        LogFormatter(const std::string& pattern = "%d{%Y-%m-%d %H:%M:%S}%T%t%T%F%T[%p]%T[%c]%T%f:%l%T[%m]%n");
+        LogFormatter(const std::string& pattern = "%d{%Y-%m-%d %H:%M:%S}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T[%m]%n");
         std::string format(std::shared_ptr<Logger> logger, LogEvent::ptr event);
         void init();                                // 解析模板字符串
         bool isError() const {return m_error;}

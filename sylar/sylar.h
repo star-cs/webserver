@@ -3,6 +3,8 @@
 
 #include "log.h"
 #include "util.h"
+#include "fiber.h"
+#include "macro.h"
 #include "config.h"
 #include "thread.h"
 #include "mutex.h"
