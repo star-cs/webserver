@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string>
+#include <vector>
 
 namespace sylar{
 
@@ -33,6 +34,22 @@ std::string GetThreadName();
  * @note 线程名称不能超过16字节，包括结尾的'\0'字符
  */
 void SetThreadName(const std::string &name);
+
+/**
+ * @brief 获取当前的调用栈
+ * @param[out] bt 保存调用栈
+ * @param[in] size 最多返回层数
+ * @param[in] skip 跳过栈顶的层数
+ */
+void Backtrace(std::vector<std::string>& bt, int size, int skip);
+
+/**
+ * @brief 获取当前栈信息的字符串
+ * @param[in] size 栈的最大层数
+ * @param[in] skip 跳过栈顶的层数
+ * @param[in] prefix 栈信息前输出的内容
+ */
+std::string BacktraceToString(int size = 64, int skip = 2, const std::string &prefix = "");
 
 }
 

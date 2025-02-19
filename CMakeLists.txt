@@ -32,6 +32,8 @@ set(LIBS
 sylar_add_executable(test_log "tests/test_log.cc" sylar "${LIBS}")
 sylar_add_executable(test_config "tests/test_config.cc" sylar "${LIBS}")
 sylar_add_executable(test_thread "tests/test_thread.cc" sylar "${LIBS}")
+sylar_add_executable(test_util "tests/test_util.cc" sylar "${LIBS}")
+
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)

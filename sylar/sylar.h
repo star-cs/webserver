@@ -6,5 +6,6 @@
 #include "config.h"
 #include "thread.h"
 #include "mutex.h"
+#include "macro.h"
 
 #endif
