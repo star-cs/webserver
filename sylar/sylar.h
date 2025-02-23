@@ -8,6 +8,6 @@
 #include "config.h"
 #include "thread.h"
 #include "mutex.h"
-#include "macro.h"
+#include "scheduler.h"
 
 #endif

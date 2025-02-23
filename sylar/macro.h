@@ -1,6 +1,7 @@
 #ifndef __SYLAR_MACRO_H__
 #define __SYLAR_MACRO_H__
-
+#include "util.h"
+#include <assert.h>
 
 #define SYLAR_ASSERT(x) \
     if(!(x)){ \

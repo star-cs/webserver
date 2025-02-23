@@ -4,6 +4,7 @@
 #include "log.h"
 #include "config.h"
 #include "macro.h"
+#include "scheduler.h"
 
 namespace sylar
 {
@@ -40,7 +41,7 @@ Fiber::Fiber(){
     SYLAR_LOG_DEBUG(g_logger) << "Fiber::Fiber() main id = " << m_id;
 }
 
-Fiber::Fiber(std::function<void()> cb, size_t stacksize): m_id(s_fiber_id++), m_cb(cb) {
+Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool run_in_scheduler): m_id(s_fiber_id++), m_cb(cb), m_runInScheduler(run_in_scheduler) {
     ++s_fiber_count;
     m_stacksize = stacksize ? stacksize : g_fiber_stack_size->getValue();
 
@@ -99,30 +100,46 @@ void Fiber::reset(std::function<void()> cb){
     m_state = READY;
 }
 
-// 当前和正在运行的协程交换，前者RUNNING，后者READY
-// 想要执行的协程调用这个~
+/**
+ * 当前和正在运行的协程交换，前者RUNNING，后者READY
+ * 想要执行的协程调用这个~
+ * 如果协程参与调度器调度，那么应该和调度器的主协程进行swap，而不是线程主协程
+ */
 void Fiber::resume(){
     SYLAR_ASSERT(m_state == READY);    // 当前的子协程应该是 READY
     SetThis(this);
     m_state = RUNNING;
-    
-    if(swapcontext(&(t_thread_fiber->m_ctx), &m_ctx)){
-        SYLAR_ASSERT2(false, "swapcontext");
+    if(m_runInScheduler){   // 相当于当前协程，是任务协程。 t_scheduler_fiber --> t_fiber
+        if(swapcontext(&(Scheduler::GetMainFiber()->m_ctx) , &m_ctx)){
+            SYLAR_ASSERT2(false, "swapcontext");
+        }
+    }else{      // t_thread_fiber --> t_scheduler_fiber
+        if(swapcontext(&(t_thread_fiber->m_ctx), &m_ctx)){
+            SYLAR_ASSERT2(false, "swapcontext");
+        }
     }
 }
 
-// 当前协程与上次resume时退到后台的协程进行交换，前者状态变为READY，后者状态变为RUNNING
-// 当前子协程，运行完cb之后会为TERM，调用yield；同时运行时RUNNING也能调用yield.
-// 当READY时，没有必要调用yield，因为当时还没有使用到资源~
+/**
+ * 当前协程与上次resume时退到后台的协程进行交换，前者状态变为READY，后者状态变为RUNNING
+ * 当前子协程，运行完cb之后会为TERM，调用yield；同时运行时RUNNING也能调用yield.
+ * 当READY时，没有必要调用yield，因为当时还没有使用到资源~
+ */
 void Fiber::yield(){
-    SYLAR_ASSERT(m_state == TERM || m_state == RUNNING)      // 当前子协程可以是 TERM，RUNNING
-    SetThis(t_thread_fiber.get());
+    SYLAR_ASSERT(m_state == TERM || m_state == RUNNING)     // 当前子协程可以是 TERM，RUNNING
+    SetThis(t_thread_fiber.get());                          // 这个是 在swapcontext前确定好？？保证上下文切换后t_fiber指针立即指向目标协程（主协程）
     if(m_state != TERM){    // 如果没有结束，中途进行yield，状态设置为READY，可能还会回来继续执行。
         m_state = READY;
     }
 
-    if(swapcontext(&m_ctx, &(t_thread_fiber->m_ctx))){
-        SYLAR_ASSERT2(false, "swapcontext");
+    if(m_runInScheduler){   // 同 resume()   t_fiber --> t_scheduler_fiber
+        if(swapcontext(&m_ctx, &(Scheduler::GetMainFiber()->m_ctx))){
+            SYLAR_ASSERT2(false, "swapcontext");
+        }
+    }else {     // t_scheduler_fiber --> t_thread_fiber
+        if(swapcontext(&m_ctx, &(t_thread_fiber->m_ctx))){
+            SYLAR_ASSERT2(false, "swapcontext");
+        }
     }
 }
 
