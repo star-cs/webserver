@@ -20,6 +20,7 @@ set(LIB_SRC
     sylar/thread.cc
     sylar/mutex.cc
     sylar/scheduler.cc
+    sylar/iomanager.cc
     )
 
 add_library(sylar SHARED ${LIB_SRC})
@@ -37,6 +38,7 @@ sylar_add_executable(test_thread "tests/test_thread.cc" sylar "${LIBS}")
 sylar_add_executable(test_util "tests/test_util.cc" sylar "${LIBS}")
 sylar_add_executable(test_fiber "tests/test_fiber.cc" sylar "${LIBS}")
 sylar_add_executable(test_scheduler "tests/test_scheduler.cc" sylar "${LIBS}")
+sylar_add_executable(test_iomanager "tests/test_iomanager.cc" sylar "${LIBS}")
 
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

@@ -91,6 +91,8 @@
       * @brief 停止调度器，等所有调度任务都执行完了再返回
       */
      void stop();
+
+     bool hasIdleThreads(){return m_idleThreadCount > 0;}
  
  protected:
      /**

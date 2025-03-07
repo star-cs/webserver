@@ -10,6 +10,7 @@ namespace sylar{
 
 class Semaphore{
 public:
+
     Semaphore(uint32_t count = 0);
 
     ~Semaphore();

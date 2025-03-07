@@ -68,7 +68,6 @@ Scheduler* Scheduler::GetThis(){
     return t_scheduler;
 }
 
-
 Fiber* Scheduler::GetMainFiber(){
     return t_scheduler_fiber;
 }
@@ -219,7 +218,7 @@ void Scheduler::run() {
                 // 如果当前的任务 不在 目标线程里
                 if(it->thread != -1 && it->thread != sylar::GetThreadId()){
                     // 指定了调度线程，但不是在当前线程上调度，标记一下需要通知其他线程进行调度，
-                    // 然后跳过这个任务，继续下一个                
+                    // 然后跳过这个任务，继续下一个
                     ++it;
                     tickle_me = true;
                     continue;
