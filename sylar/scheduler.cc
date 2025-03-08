@@ -111,11 +111,12 @@ bool Scheduler::stopping() {
 }
 
 void Scheduler::tickle() { 
-    SYLAR_LOG_DEBUG(g_logger) << "tickle"; 
+    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::tickle()"; 
 }
 
 void Scheduler::idle() {
     SYLAR_LOG_DEBUG(g_logger) << "idle";
+    // 如果idle协程退出了这个while()循环，就相当于直接退出了 idle_fiber->getState() 变为 TERM
     while (!stopping()) {
         sylar::Fiber::GetThis()->yield();
     }
@@ -126,7 +127,7 @@ void Scheduler::idle() {
  * 2. 纯线程池 模型是，只要是外部线程即可stop。
  */
 void Scheduler::stop() {
-    SYLAR_LOG_DEBUG(g_logger) << "stop";
+    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::stop()";
     if(stopping()){
         return;
     }
@@ -197,7 +198,7 @@ void Scheduler::stop() {
  * 例如：1. use_caller主线程里的主协程、调度协程 t_scheduler_fiber
  */
 void Scheduler::run() {
-    SYLAR_LOG_DEBUG(g_logger) << "run";
+    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::run()";
     setThis();                                      /// 每个子线程都会把 传入的Scheduler，保证每个任务线程指向 同一个 Scheduler
     if(sylar::GetThreadId() != m_rootThread){       /// 意味着当前执行run 的是start()里创建的子线程
         t_scheduler_fiber = sylar::Fiber::GetThis().get();      // 此时的子线程 还没主协程，故，创建并赋值给 t_scheduler_fiber，作为当前线程的调度协程~ 

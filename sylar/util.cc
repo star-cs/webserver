@@ -3,7 +3,8 @@
 #include <stdlib.h>
 #include "log.h"
 #include "fiber.h"
-sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
+
+static sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 
 namespace sylar{
     pid_t GetThreadId(){
