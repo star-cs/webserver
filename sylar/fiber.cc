@@ -127,16 +127,17 @@ void Fiber::resume(){
  */
 void Fiber::yield(){
     SYLAR_ASSERT(m_state == TERM || m_state == RUNNING)     // 当前子协程可以是 TERM，RUNNING
-    SetThis(t_thread_fiber.get());                          // 这个是 在swapcontext前确定好？？保证上下文切换后t_fiber指针立即指向目标协程（主协程）
     if(m_state != TERM){    // 如果没有结束，中途进行yield，状态设置为READY，可能还会回来继续执行。
         m_state = READY;
     }
 
     if(m_runInScheduler){   // 同 resume()   t_fiber --> t_scheduler_fiber
+        SetThis(Scheduler::GetMainFiber());
         if(swapcontext(&m_ctx, &(Scheduler::GetMainFiber()->m_ctx))){
             SYLAR_ASSERT2(false, "swapcontext");
         }
     }else {     // t_scheduler_fiber --> t_thread_fiber
+        SetThis(t_thread_fiber.get());                          // 这个是 在swapcontext前确定好？？保证上下文切换后t_fiber指针立即指向目标协程（主协程）
         if(swapcontext(&m_ctx, &(t_thread_fiber->m_ctx))){
             SYLAR_ASSERT2(false, "swapcontext");
         }

@@ -3,6 +3,8 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <vector>
+
 #include "util.h"
 #include "iomanager.h"
 #include "macro.h"
@@ -348,10 +350,14 @@ void IOManager::tickle(){
     SYLAR_ASSERT(rt == 1);
 }
 
-
-
 bool IOManager::stopping(){
-    return m_pendingEventCount == 0 && Scheduler::stopping();
+    uint64_t timeout = 0;
+    return stopping(timeout);
+}
+
+bool IOManager::stopping(uint64_t& next_timeout){
+    next_timeout = getNextTimer();
+    return next_timeout== ~0ull && m_pendingEventCount == 0 && Scheduler::stopping();
 }
 
 
@@ -371,26 +377,47 @@ void IOManager::idle(){
     });
 
     while(true){
-        if(stopping()){
+        // 获取下一个定时器的超时事件，顺便判断调度器是否停止。
+        uint64_t next_timeout = 0;
+        if(stopping(next_timeout)){
             SYLAR_LOG_DEBUG(g_logger) << "name=" << getName() << " idle stopping exit";
             break;
         }
-        static const int MAX_TIMEOUT = 5000;
-        int rt = epoll_wait(m_epfd, events, MAX_EVENTS, MAX_TIMEOUT);
-
-        if(rt < 0){
-            if(errno == EINTR){ //在任何请求的事件发生或超时到期之前，信号处理程序中断了该调用
-                continue;
+        int rt = 0;
+        do{
+            static const int MAX_TIMEOUT = 5000;
+            if(next_timeout != ~0ull){
+                next_timeout = std::min((int)next_timeout, MAX_TIMEOUT);
+            }else{
+                next_timeout = MAX_TIMEOUT;
             }
-            SYLAR_LOG_ERROR(g_logger) << "epoll_wait(" << m_epfd << ") (rt="
-                << rt << ") (errno=" << errno << ") (errstr:" << strerror(errno) << ")";
-            break;
+            rt = epoll_wait(m_epfd, events, MAX_EVENTS, (int)next_timeout);
+
+            if(rt < 0){
+                if(errno == EINTR){ //在任何请求的事件发生或超时到期之前，信号处理程序中断了该调用
+                    continue;
+                }
+                SYLAR_LOG_ERROR(g_logger) << "epoll_wait(" << m_epfd << ") (rt="
+                    << rt << ") (errno=" << errno << ") (errstr:" << strerror(errno) << ")";
+                break;
+            }else{
+                break;
+            }
+        }while(true);
+
+        // 退出epoll_wait
+        std::vector<std::function<void()>> cbs;
+        listExpiredCb(cbs);
+        if(!cbs.empty()){
+            for(const auto& cb: cbs){
+                schedule(cb);
+            }
+            cbs.clear();
         }
 
         for(int i = 0 ; i < rt; ++i){
             epoll_event& event = events[i];
             // ticklefd[0]用于通知协程调度，这时只需要把管道读完
-            // ??? 这有啥用
             if(event.data.fd == m_tickleFds[0]){ 
                 uint8_t dummy[256];
                 while(read(m_tickleFds[0], dummy, sizeof(dummy)) > 0);
@@ -455,14 +482,20 @@ void IOManager::idle(){
          * 处理完所有的事件后，idle协程yield，让 调度协程 Scheduler::run 重新检查是否有新任务要调度
          * 上面 triggleEvent 实际也只是把对应的fiber重新加入调度，要执行的话还是需要从idle协程退出。
          */
-        Fiber::ptr cur = Fiber::GetThis();
-        auto raw_ptr = cur.get();
-        cur.reset();
+        // Fiber::ptr cur = Fiber::GetThis();
+        // auto raw_ptr = cur.get();
+        // cur.reset();
 
-        raw_ptr->yield();
-
+        // raw_ptr->yield();
+        Fiber::GetThis()->yield();
+        
     } // end while(true)
-
 }
+
+
+void IOManager::onTimerInsertedAtFront(){
+    tickle();
+}
+
 
 } // end namespace sylar

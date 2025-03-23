@@ -204,7 +204,6 @@ void Scheduler::run() {
         t_scheduler_fiber = sylar::Fiber::GetThis().get();      // 此时的子线程 还没主协程，故，创建并赋值给 t_scheduler_fiber，作为当前线程的调度协程~ 
     }       // use_caller主线程，在调度器初始化时，已经把 主线程的调度协程，赋值给 t_scheduler_fiber
     
-
     Fiber::ptr idle_fiber(new Fiber(std::bind(&Scheduler::idle, this)));    // 空转 协程
     Fiber::ptr cb_fiber;                                                    // 用于封装 cb 仿函数任务的协程
 

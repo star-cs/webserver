@@ -51,6 +51,13 @@ void Backtrace(std::vector<std::string>& bt, int size, int skip);
  */
 std::string BacktraceToString(int size = 64, int skip = 2, const std::string &prefix = "");
 
+// 返回当前时间的毫秒
+uint64_t GetCurrentTimeMS();
+
+// 返回当前时间的微秒
+uint64_t GetCurrentTimeUS();
+
+
 }
 
 #endif

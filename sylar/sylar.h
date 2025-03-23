@@ -10,5 +10,6 @@
 #include "mutex.h"
 #include "scheduler.h"
 #include "iomanager.h"
+#include "timermanager.h"
 
 #endif

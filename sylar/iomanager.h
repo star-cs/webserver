@@ -2,10 +2,11 @@
 #define __SYLAR__IO_MANAGER_H__
 
 #include "scheduler.h"
+#include "timermanager.h"
 
 namespace sylar {
 
-class IOManager : public Scheduler{
+class IOManager : public Scheduler , public TimerManager{
 public:
     typedef std::shared_ptr<IOManager> ptr;
     typedef RWMutex RWMutexType;
@@ -102,16 +103,28 @@ protected:
       * @brief 通知协程调度器有任务了
       */
     void tickle();
+
+    /**
+     * 是否可以停止
+     */
+    bool stopping();
  
     /**
     * @brief 返回是否可以停止
+    * 和上面一个方法，区别是能调用
     */
-    bool stopping();
+    bool stopping(uint64_t& next_timeout);
 
     /**
     * @brief 无任务调度时执行idle协程
     */
     void idle();
+
+    /**
+     * 当有定时器插入到头部时，要重新更新epoll_wait的超时事件
+     * 这里是唤醒idle协程以便使用新的超时时间
+     */
+    void onTimerInsertedAtFront() override;
  
 private:
     // epoll 文件句柄

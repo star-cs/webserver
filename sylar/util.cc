@@ -1,6 +1,9 @@
 #include "util.h"
 #include <execinfo.h>
 #include <stdlib.h>
+
+#include <sys/time.h>
+
 #include "log.h"
 #include "fiber.h"
 
@@ -51,6 +54,19 @@ namespace sylar{
             ss << prefix << bt[i] << std::endl;
         }
         return ss.str();
+    }
+
+
+    uint64_t GetCurrentTimeMS(){
+        timeval tv;
+        gettimeofday(&tv, nullptr);
+        return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    }
+
+    uint64_t GetCurrentTimeUS(){
+        timeval tv;
+        gettimeofday(&tv, nullptr);
+        return tv.tv_sec * 1000 * 1000 + tv.tv_usec;
     }
 
 }

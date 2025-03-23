@@ -74,6 +74,9 @@
          bool need_tickle = false;
          {
              MutexType::Lock lock(m_mutex);
+             if(stopping()){        // 如果关闭，那么不能添加任务了。（子线程也能添加）
+                return;
+             }
              need_tickle = scheduleNoLock(fc, thread);
          }
  
