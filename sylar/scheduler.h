@@ -15,7 +15,8 @@
  #include "fiber.h"
  #include "log.h"
  #include "thread.h"
- 
+ #include <iostream>
+
  namespace sylar {
  
  /**
@@ -71,12 +72,13 @@
       */
      template <class FiberOrCb>
      void schedule(FiberOrCb fc, int thread = -1) {
+         if(stopping()){        // 如果关闭，那么不能添加任务了。（子线程也能添加）
+            return;
+         }
+         std::cout << "m_tasks size : " << m_threads.size();
          bool need_tickle = false;
          {
-             MutexType::Lock lock(m_mutex);
-             if(stopping()){        // 如果关闭，那么不能添加任务了。（子线程也能添加）
-                return;
-             }
+             MutexType::Lock lock(m_mutex);  
              need_tickle = scheduleNoLock(fc, thread);
          }
  

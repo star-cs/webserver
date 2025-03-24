@@ -1,5 +1,6 @@
 #include "scheduler.h"
 #include "macro.h"
+#include "hook.h"
 
 namespace sylar
 {
@@ -102,6 +103,7 @@ void Scheduler::start() {
         m_threads[i].reset(new Thread(std::bind(&Scheduler::run, this), m_name + "_" + std::to_string(i)));
         m_threadIds.push_back(m_threads[i]->getId());
     }
+    SYLAR_LOG_DEBUG(g_logger) << "m_threads size : " << m_threads.size();
 }
 
 bool Scheduler::stopping() {
@@ -203,7 +205,7 @@ void Scheduler::run() {
     if(sylar::GetThreadId() != m_rootThread){       /// 意味着当前执行run 的是start()里创建的子线程
         t_scheduler_fiber = sylar::Fiber::GetThis().get();      // 此时的子线程 还没主协程，故，创建并赋值给 t_scheduler_fiber，作为当前线程的调度协程~ 
     }       // use_caller主线程，在调度器初始化时，已经把 主线程的调度协程，赋值给 t_scheduler_fiber
-    
+    set_hook_enable(true);
     Fiber::ptr idle_fiber(new Fiber(std::bind(&Scheduler::idle, this)));    // 空转 协程
     Fiber::ptr cb_fiber;                                                    // 用于封装 cb 仿函数任务的协程
 
@@ -213,6 +215,7 @@ void Scheduler::run() {
         bool tickle_me = false;     // 是否 tickle 其他线程进行任务调度
         {
             MutexType::Lock lock(m_mutex);
+            // SYLAR_LOG_DEBUG(g_logger) << "m_tasks size : " << m_tasks.size(); 
             auto it = m_tasks.begin();
             while(it != m_tasks.end()){
                 // 如果当前的任务 不在 目标线程里

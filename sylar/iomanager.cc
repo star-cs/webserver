@@ -134,6 +134,7 @@ IOManager::IOManager(size_t threads, bool use_caller, const std::string &name)
 } 
 
 IOManager::~IOManager(){
+    SYLAR_LOG_DEBUG(g_logger) << "~IOManager()";
     stop();
     close(m_epfd);
     close(m_tickleFds[0]);
