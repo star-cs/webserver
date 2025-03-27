@@ -75,7 +75,6 @@
          if(stopping()){        // 如果关闭，那么不能添加任务了。（子线程也能添加）
             return;
          }
-         std::cout << "m_tasks size : " << m_threads.size();
          bool need_tickle = false;
          {
              MutexType::Lock lock(m_mutex);  

@@ -146,6 +146,7 @@ IOManager::~IOManager(){
     }
 }
 
+// 返回 0 成功， 返回 -1 失败
 int IOManager::addEvent(int fd, IOManager::Event event, std::function<void()> cb){
     FdContext* fd_ctx = nullptr;
     RWMutexType::ReadLock lock(m_mutex);

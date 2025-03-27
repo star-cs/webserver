@@ -116,6 +116,12 @@ Timer::ptr TimerManager::addTimer(uint64_t ms, std::function<void()> cb, bool re
 
 // 增加代码复用，让addConditionTimer 可以调用 addTiemr
 // 太妙了 ~~~ 
+// 若直接使用std::shared_ptr参数，当定时器回调持有该shared_ptr时，会强制延长关联对象的生命周期，即使外部已不再需要该对象。
+// 用weak_ptr则不会增加引用计数，允许关联对象在外部引用归零时正常析构。
+
+// 这种模式常用于需要对象关联生命周期的定时任务，例如：
+// 网络连接超时检测（当连接已关闭时无需触发超时回调）
+// 资源释放校验（当资源持有者已销毁时取消清理操作）
 static void OnTimer(std::weak_ptr<void> weak_ptr, std::function<void()> cb){
     std::shared_ptr<void> it = weak_ptr.lock();
     if(it){
