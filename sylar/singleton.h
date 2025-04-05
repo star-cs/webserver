@@ -16,10 +16,27 @@ template<class T, class X = void, int N = 0>
 class SingletonPtr{
     public: 
         static std::shared_ptr<T> GetInstance(){
-            static std::shared_ptr<T> v(new T);
+            static std::shared_ptr<T> v(std::make_shared<T>);
             return v;
         }
 };
+
+template<class T, class X = void, int N = 0>
+class SingletonHungry {
+public:
+    static T* GetInstance() {
+        return instance;
+    }
+    
+private:
+    SingletonHungry() = default;
+    static T* instance;
+};
+
+// // 类外初始化（在头文件中需要加上模板定义）
+template<class T, class X, int N>
+T* SingletonHungry<T, X, N>::instance = new T();
+
 
 
 }

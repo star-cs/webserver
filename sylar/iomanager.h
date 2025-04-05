@@ -1,8 +1,9 @@
-#ifndef __SYLAR__IO_MANAGER_H__
-#define __SYLAR__IO_MANAGER_H__
+#ifndef __SYLAR_IO_MANAGER_H__
+#define __SYLAR_IO_MANAGER_H__
 
 #include "scheduler.h"
 #include "timermanager.h"
+#include "unordered_map"
 
 namespace sylar {
 
@@ -41,7 +42,7 @@ private:
             std::function<void()> cb;
         };
 
-        EventContext& getEventContex(Event event);
+        EventContext& getEventContext(Event event);
         void resetEventContext(EventContext& ctx);
         void triggerEvent(Event event);
 
@@ -65,6 +66,8 @@ public:
     IOManager(size_t threads = 1, bool use_caller = true, const std::string &name = "IOManager");
 
     ~IOManager();
+
+    void Close();
 
     // 下面对上下文的操作，事件只能 READ，WRITE分开操作
 
@@ -95,7 +98,6 @@ public:
 
     bool cancelAll(int fd);
     
-
     void contextResize(size_t size);
 
 protected:
@@ -103,6 +105,8 @@ protected:
       * @brief 通知协程调度器有任务了
       */
     void tickle();
+    
+    void tickle(const std::string& reason);
 
     /**
      * 是否可以停止
@@ -125,7 +129,6 @@ protected:
      * 这里是唤醒idle协程以便使用新的超时时间
      */
     void onTimerInsertedAtFront() override;
- 
 private:
     // epoll 文件句柄
     int m_epfd = 0;
@@ -138,9 +141,7 @@ private:
 
     std::vector<FdContext *> m_fdContexts;
 };
-    
 
-    
 }
 
 #endif

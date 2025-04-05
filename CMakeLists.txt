@@ -11,18 +11,21 @@ include_directories(.)
 include_directories(/usr/local/include) 
 link_directories(/usr/local/lib)            # 一般安装后，include是头文件，lib是库文件
 
-set(LIB_SRC 
-    sylar/log.cc
-    sylar/util.cc
+set(LIB_SRC
     sylar/config.cc
+    sylar/config_init.cc
+    sylar/fd_manager.cc 
     sylar/fiber.cc
-    sylar/thread.cc
+    sylar/hook.cc
+    sylar/iomanager.cc
+    sylar/buffermanager.cc
+    sylar/log.cc
     sylar/mutex.cc
     sylar/scheduler.cc
-    sylar/iomanager.cc
     sylar/timermanager.cc
-    sylar/hook.cc
-    sylar/fd_manager.cc
+    sylar/thread.cc
+    sylar/util.cc
+    sylar/worker.cc
     )
 
 add_library(sylar SHARED ${LIB_SRC})

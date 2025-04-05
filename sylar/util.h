@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include <boost/lexical_cast.hpp> 
 
 namespace sylar{
 
@@ -56,6 +57,55 @@ uint64_t GetCurrentTimeMS();
 
 // 返回当前时间的微秒
 uint64_t GetCurrentTimeUS();
+
+
+class FSUtil {
+public:
+    static void ListAllFile(std::vector<std::string>& files
+                            ,const std::string& path
+                            ,const std::string& subfix);
+    static bool Mkdir(const std::string& dirname);
+    static bool IsRunningPidfile(const std::string& pidfile);
+    static bool Rm(const std::string& path);
+    static bool Mv(const std::string& from, const std::string& to);
+    static bool Realpath(const std::string& path, std::string& rpath);
+    static bool Symlink(const std::string& frm, const std::string& to);
+    static bool Unlink(const std::string& filename, bool exist = false);
+    static std::string Dirname(const std::string& filename);
+    static std::string Basename(const std::string& filename);
+    static bool OpenForRead(std::ifstream& ifs, const std::string& filename
+                    ,std::ios_base::openmode mode);
+    static bool OpenForWrite(std::ofstream& ofs, const std::string& filename
+                    ,std::ios_base::openmode mode);
+};
+
+
+template<class V, class Map, class K>
+V GetParamValue(const Map& m, const K& k, const V& def = V()) {
+    auto it = m.find(k);
+    if(it == m.end()) {
+        return def;
+    }
+    try {
+        return boost::lexical_cast<V>(it->second);
+    } catch (...) {
+    }
+    return def;
+}
+
+template<class V, class Map, class K>
+bool CheckGetParamValue(const Map& m, const K& k, V& v) {
+    auto it = m.find(k);
+    if(it == m.end()) {
+        return false;
+    }
+    try {
+        v = boost::lexical_cast<V>(it->second);
+        return true;
+    } catch (...) {
+    }
+    return false;
+}
 
 
 }

@@ -45,7 +45,7 @@ Scheduler::Scheduler(size_t threads, bool use_caller, const std::string &name){
     if(use_caller){ // 主线程也添加到 调度
         threads--;
         sylar::Fiber::GetThis();            // 创建主协程，初始化 t_thread_fiber
-        SYLAR_ASSERT(GetThis() == nullptr)  // 当前线程没有调度器
+        SYLAR_ASSERT(GetThis() == nullptr)  // 当前线程没有调度器（如果有了t_scheduler存在，意味着 主线程已经加入了 某一个调度器管理中）
         t_scheduler = this;                 // 设置当前线程的调度器
 
         /**
@@ -54,7 +54,7 @@ Scheduler::Scheduler(size_t threads, bool use_caller, const std::string &name){
          * 
          * t_thread_fiber <--> t_scheduler_fiber <--> t_fiber(任务协程)
          */
-        m_rootFiber.reset(new Fiber(std::bind(&Scheduler::run, this), 0, false));  
+        m_rootFiber.reset(new Fiber(std::bind(&Scheduler::run, this), 0, false)); 
         t_scheduler_fiber = m_rootFiber.get();   // 主线程里的 调度协程
         sylar::Thread::SetName(m_name);
         m_rootThread = sylar::GetThreadId();
@@ -103,8 +103,10 @@ void Scheduler::start() {
         m_threads[i].reset(new Thread(std::bind(&Scheduler::run, this), m_name + "_" + std::to_string(i)));
         m_threadIds.push_back(m_threads[i]->getId());
     }
-    SYLAR_LOG_DEBUG(g_logger) << "m_threads size : " << m_threads.size();
+    // SYLAR_LOG_DEBUG(g_logger) << "m_threads size : " << m_threads.size();
 }
+
+
 
 bool Scheduler::stopping() {
     MutexType::Lock lock(m_mutex);
@@ -114,6 +116,10 @@ bool Scheduler::stopping() {
 
 void Scheduler::tickle() { 
     SYLAR_LOG_DEBUG(g_logger) << "Scheduler::tickle()"; 
+}
+
+void Scheduler::tickle(const std::string& reason){
+    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::tickle(), reason : " << reason; 
 }
 
 void Scheduler::idle() {
@@ -129,7 +135,6 @@ void Scheduler::idle() {
  * 2. 纯线程池 模型是，只要是外部线程即可stop。
  */
 void Scheduler::stop() {
-    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::stop()";
     if(stopping()){
         return;
     }
@@ -146,11 +151,11 @@ void Scheduler::stop() {
     }
 
     for (size_t i = 0; i < m_threadCount; i++) {
-        tickle();
+        tickle("Scheduler::stop() tickle all threds");
     }
 
     if (m_rootFiber) {
-        tickle();
+        tickle("Scheduler::stop() tickle root fiber");
     }
 
     /**
@@ -161,8 +166,9 @@ void Scheduler::stop() {
      * m_rootFiber 保存的就是 use_caller 调度协程
      */ 
     if (m_rootFiber) {
-        m_rootFiber->resume();
-        SYLAR_LOG_DEBUG(g_logger) << "m_rootFiber end";
+        if(!stopping()) {
+            m_rootFiber->resume();
+        }
     }
 
     std::vector<Thread::ptr> thrs;
@@ -245,7 +251,7 @@ void Scheduler::run() {
         }
 
         if(tickle_me){
-            tickle();           // 实际 tickle 不会通知，因为 只要 调度不停止，就会不断拿去 任务~ （这里是一个while(true){...}）
+            tickle("Scheduler::run() m_tasks has");           // 实际 tickle 不会通知，因为 只要 调度不停止，就会不断拿去 任务~ （这里是一个while(true){...}）
         }
 
         if(task.fiber){
@@ -286,5 +292,63 @@ void Scheduler::run() {
 
 
 
+void Scheduler::adjustThreads(size_t new_threads){
+    if (stopping()) {
+        SYLAR_LOG_WARN(g_logger) << "Cannot adjust threads when stopping";
+        return;
+    }
+
+    MutexType::Lock lock(m_mutex);
+    size_t old_len = m_threads.size();
+
+    if(new_threads == old_len){
+        return;
+    }
+
+    if(new_threads > old_len){
+        size_t add_count = new_threads - old_len;
+        for(size_t i = 0 ; i < add_count; ++i){
+            m_threads.emplace_back(
+                new Thread(std::bind(&Scheduler::run, this),
+                            m_name + "_" + std::to_string(old_len + i))
+            );
+            m_threadIds.push_back(m_threads.back()->getId());
+        }
+        m_threadCount = m_threads.size();
+        SYLAR_LOG_INFO(g_logger) << "Added " << add_count << " threads. Total: " << m_threads.size();
+    }else{
+        // 直接截断容器并收集需要关闭的线程
+        std::vector<Thread::ptr> threads_to_close(
+            m_threads.begin() + new_threads, 
+            m_threads.end()
+        );
+        m_threads.resize(new_threads); // 截断线程列表
+
+        // 同步截断线程 ID 列表
+        m_threadIds.erase(m_threadIds.begin() + new_threads, m_threadIds.end());
+
+        // 等待线程完成
+        for (const auto& thread : threads_to_close) {
+            thread->join();
+        }
+        SYLAR_LOG_WARN(g_logger) << "Reducing threads not implemented yet";
+    }
+}
+
+std::ostream& Scheduler::dump(std::ostream& os) {
+    os << "[Scheduler name=" << m_name
+       << " size=" << m_threadCount
+       << " active_count=" << m_activeThreadCount
+       << " idle_count=" << m_idleThreadCount
+       << " stopping=" << m_stopping
+       << " ]" << std::endl << "    ";
+    for(size_t i = 0; i < m_threadIds.size(); ++i) {
+        if(i) {
+            os << ", ";
+        }
+        os << m_threadIds[i];
+    }
+    return os;
+}
 
 }

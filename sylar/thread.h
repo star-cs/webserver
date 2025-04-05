@@ -1,13 +1,11 @@
 #ifndef __SYLAR_THREAD_H_
 #define __SYLAR_THREAD_H_
 
-#include <functional>
-#include <memory>
 #include "mutex.h"
 
 namespace sylar{
 
-class Thread{
+class Thread : Noncopyable {
 public:
     typedef std::shared_ptr<Thread> ptr;
     Thread(std::function<void()> cb, const std::string& name);
@@ -30,9 +28,6 @@ public:
 
     static void* run(void* args);
     
-private:
-    Thread(const Thread&) = delete;
-    Thread& operator=(const Thread&) = delete;
 private:
     // 线程id
     pid_t m_id= -1;

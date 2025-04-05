@@ -80,9 +80,9 @@
              MutexType::Lock lock(m_mutex);  
              need_tickle = scheduleNoLock(fc, thread);
          }
- 
+
          if (need_tickle) {
-            tickle(); // 唤醒idle协程
+            tickle("schedule() add new tasks"); // 唤醒idle协程
          }
      }
  
@@ -97,12 +97,25 @@
      void stop();
 
      bool hasIdleThreads(){return m_idleThreadCount > 0;}
- 
+
+     size_t threadCount() const {return m_threadCount;}
+
+     void adjustThreads(size_t new_threads);
+
+     size_t getTasksSize() const {return m_tasks.size();}
+
+     size_t getIdleThreadSize() const {return m_idleThreadCount;}
+    
+     std::ostream& dump(std::ostream& os);
+
+
  protected:
      /**
       * @brief 通知协程调度器有任务了
       */
      virtual void tickle();
+
+     virtual void tickle(const std::string& reason);
  
      /**
       * @brief 协程调度函数

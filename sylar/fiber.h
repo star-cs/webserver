@@ -3,7 +3,7 @@
 #include <functional>
 #include <memory>
 #include <ucontext.h>
-#include "thread.h"
+
 namespace sylar {
 /**
  * @brief 协程类

@@ -30,6 +30,8 @@ ConfigVarBase::ptr Config::LookupBase(const std::string& name){
     return it == GetDatas().end() ? nullptr : it->second;
 }
 
+
+
 void Config::LoadFromYaml(const YAML::Node& root){
     std::list<std::pair<std::string, const YAML::Node> > all_notes;
     ListAllMember("", root, all_notes);     // 把yaml的结构 全部 通用成 a.b.c - node 相当于消除map结构
@@ -62,6 +64,5 @@ void Config::Visit(std::function<void(ConfigVarBase::ptr)> cb){
         cb(it->second);
     }
 }
-
 
 } // namespace sylar

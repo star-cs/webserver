@@ -5,8 +5,8 @@
 #include <iostream>
 #include <time.h>
 #include <stdarg.h>
+#include <yaml-cpp/yaml.h>
 
-#include "config.h"
 #include "thread.h"
 namespace sylar{
 
@@ -65,7 +65,7 @@ class ThreadNameFormatterItem : public LogFormatter::FormatterItem{
     public:
         ThreadNameFormatterItem(const std::string& str = "") {}
         void format(std::ostream& os, Logger::ptr logger, LogEvent::ptr event) override{
-            os << Thread::GetName();
+            os << event->getThreadName();
         }
 };
 
@@ -210,10 +210,6 @@ LogLevel::Level LogLevel::FromString(const std::string& str){
 }
 
 // Logger
-Logger::Logger(const std::string name)
-    : m_name(name)
-    , m_level(LogLevel::UNKNOW){        // logger默认最低的日志权重，大于等于这个日志权重的事件都要被记录
-}
 
 void Logger::addAppender(LogAppender::ptr appender){
     MutexType::Lock lock(m_mutex);
@@ -235,15 +231,7 @@ void Logger::clearAppender(){
     m_appenders.clear();
 }
 
-void Logger::log(LogEvent::ptr event){
-    if(event->getLevel() >= m_level){
-        // todo
-        auto self = shared_from_this();
-        for(auto& i: m_appenders){
-            i->log(self, event);
-        }
-    }
-}
+
 
 std::string Logger::toYamlString(){
     MutexType::Lock lock(m_mutex);
@@ -297,10 +285,10 @@ void StdoutLogAppender::log(std::shared_ptr<Logger> logger, LogEvent::ptr event)
     }
 }
 
+// FileLogAppender
 FileLogAppender::FileLogAppender(const std::string& filename, LogLevel::Level level, LogFormatter::ptr formatter)
-    : LogAppender(level, formatter){ 
-    m_filename = filename;
-    m_lastTime = 0;
+    : LogAppender(level, formatter), m_filename(filename), m_lastTime(0){ 
+    FSUtil::Mkdir(FSUtil::Dirname(m_filename));
     reopen(time(0), 0);
 }
 
@@ -347,6 +335,9 @@ void FileLogAppender::log(std::shared_ptr<Logger> logger, LogEvent::ptr event){
     }
 }
 
+//RollFileLogAppender
+
+
 //Formmater
 LogFormatter::LogFormatter(const std::string& pattern)
     : m_pattern(pattern){
@@ -364,66 +355,68 @@ std::string LogFormatter::format(std::shared_ptr<Logger> logger, LogEvent::ptr e
 }
 
 
-void LogFormatter::init(){
-    // 例如 "%d{%Y-%m-%d %H:%M:%S}%T%t%T%F%T[%p]%T[%c]%T%f:%l%T%m%n" 
-    // %d {%Y-%m-%d %H:%M:%S}
-    // 解析对象分成两类 一类是普通字符串 另一类是可被解析的
-    // tuple来定义 需要的格式 std::tuple<std::string,std::string,int> 
-    // <符号,子串,类型>  类型0-普通字符串 类型1-可被解析的字符串
+// 初始化日志格式解析器
+void LogFormatter::init() {
+    // 解析模式字符串，示例："%d{%Y-%m-%d %H:%M:%S}%T%t%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"
+    
+    // 存储解析结果的三元组容器：
+    // tuple<原始字符串, 格式参数, 类型> 
+    // 类型说明：0-普通字符串，1-格式项
     std::vector<std::tuple<std::string, std::string, int>> vec;
-    std::string nstr;
-    // 是否解析出错
-    bool error = false;
+    std::string nstr; // 临时存储普通字符
+    bool error = false; // 解析错误标志
 
-    for(size_t i = 0 ; i < m_pattern.size() ; ++i){
-        // 如果不是%，添加到 nstr
-        // 仔细思考，这个地方只有 普通字符串会接收到。
-        // 正常来说，访问到 '%'，经过查找之后，会直接跳过 一段 %str[fmt]。到下一个'%'或普通字符
-        // nstr 保存的就是 普通字符，特别的是，它的添加是和 下一段%str[fmt] 一起添加。
-        if(m_pattern[i] != '%'){
+    // 遍历模式字符串每个字符
+    for(size_t i = 0 ; i < m_pattern.size() ; ++i) {
+        // 处理普通字符（非%开头）
+        if(m_pattern[i] != '%') {
             nstr.append(1, m_pattern[i]);
             continue;
         }
 
-        // %%转义字符 --> %
-        if((i+1) < m_pattern.size() && m_pattern[i+1] == '%'){
+        // 处理转义字符%%
+        if((i+1) < m_pattern.size() && m_pattern[i+1] == '%') {
             nstr.append(1, '%');
+            i++; // 跳过下一个%
             continue;
         }
 
-        // m_pattern[i]是% && m_pattern[i + 1] != '%', 需要进行解析
-        size_t pos = i+1;   //下一个字符
-        int fmt_status = 0;
-        size_t fmt_begin = 0;
+        // 开始解析格式项（如%d{...}）
+        size_t pos = i + 1;
+        int fmt_status = 0;    // 0-寻找格式项，1-解析{}内参数
+        size_t fmt_begin = 0;  // {的位置索引
+        std::string str;       // 格式项标识符（如d）
+        std::string fmt;       // {}内的格式参数（如%Y-%m-%d）
 
-        std::string str;    // %之后，'{'之前的字符串
-        std::string fmt;    // '{}'里的字符
-        while(pos < m_pattern.size()){
-            // 1. 不是 { } ，那么可能pos移动到了 '%' '_'(空格) '['(普通字符串) 这个时候，str就得到了。
-            if(fmt_status == 0 && m_pattern[pos] != '{' && m_pattern[pos] != '}' && !isalpha(m_pattern[pos])){
+        while(pos < m_pattern.size()) {
+            // 状态0：寻找格式项结束或{
+            if(fmt_status == 0 && 
+              !isalpha(m_pattern[pos]) && // 非字母字符作为分隔
+              m_pattern[pos] != '{' && 
+              m_pattern[pos] != '}') {
                 str = m_pattern.substr(i+1, pos-i-1);
                 break;
             }
-
-            if(fmt_status == 0){
-                if(m_pattern[pos] == '{'){
-                    str = m_pattern.substr(i+1, pos-i-1);
-                    fmt_status = 1;         // 进入'{'
-                    fmt_begin = pos;        // '{' 下标
-                    ++pos;
-                    continue;
-                }
-            } else if(fmt_status == 1){
-                if(m_pattern[pos] == '}'){
+            
+            // 遇到{开始解析格式参数
+            if(fmt_status == 0 && m_pattern[pos] == '{') {
+                str = m_pattern.substr(i+1, pos-i-1);
+                fmt_status = 1;
+                fmt_begin = pos;
+                pos++;
+                continue;
+            }
+            
+            // 状态1：寻找}结束
+            if(fmt_status == 1) {
+                if(m_pattern[pos] == '}') {
                     fmt = m_pattern.substr(fmt_begin+1, pos-fmt_begin-1);
                     fmt_status = 0;
-                    ++pos;
-                    // 找到了'}'，退出循环
+                    pos++;
                     break;
                 }
             }
-
-            ++pos;
+            pos++;
             if(pos == m_pattern.size()){    //如果到了结尾，还是没有str
                 if(str.empty()){
                     str = m_pattern.substr(i+1);
@@ -431,95 +424,76 @@ void LogFormatter::init(){
             }
         }
 
-        if(fmt_status == 0){
-            //1. 前面的普通字符串
-            if(!nstr.empty()){
-                vec.push_back(std::make_tuple(nstr, std::string() , 0));
+        // 处理解析结果
+        if(fmt_status == 0) {
+            // 保存之前的普通字符串
+            if(!nstr.empty()) {
+                vec.emplace_back(nstr, "", 0);
                 nstr.clear();
             }
-            //2. 当前 %str{fmt}
-            vec.push_back(std::make_tuple(str, fmt, 1));
-
-            // i 移动到 pos-1，经过for循环再+1。之后 i=pos 跳过前一段 %str{fmt}
-            i = pos-1;
-        } else if(fmt_status == 1){
-            // 没有找到与'{'相对应的'}' 所以解析报错，格式错误
-            std::cout << "pattern parse error:" << m_pattern << " - " << m_pattern.substr(i) << std::endl;
-            vec.push_back(std::make_tuple("<<pattern_error>>", fmt, 0));
+            // 保存当前格式项
+            vec.emplace_back(str, fmt, 1);
+            i = pos - 1; // 跳过已解析部分
+        } else {
+            // {}不匹配的错误处理
+            std::cout << "pattern parse error:" << m_pattern << " - " 
+                     << m_pattern.substr(i) << std::endl;
+            vec.emplace_back("<<pattern_error>>", fmt, 0);
             error = true;
         }
     }
 
-    if(error){
-        m_error = true;
-        return;
+    // 保存最后的普通字符串
+    if(!nstr.empty()) {
+        vec.emplace_back(nstr, "", 0);
     }
 
-    //结尾 判断普通字符串
-    if(!nstr.empty()){
-        vec.push_back(std::make_tuple(nstr, std::string() , 0));
-        nstr.clear();
-    }
-
-    /**
-     * %m -- 消息体
-     * %p -- level
-     * %r -- 启动后的时间
-     * %c -- 日志名称
-     * %t -- 线程id
-     * %N -- 线程name
-     * %F -- 协程id
-     * %l -- 行号
-     * %d -- 时间
-     * %n -- 回车换行
-     * %f -- 文件名
-     * %T -- Tab
-     * %s -- string
-     */
-    // 这里的map，每个字符对于的仿函数。
-    // 普通字符串，DataTime 需要初始化str。
-    // 需要输出FormatterItem::ptr对应的子类指针
-    static std::map<std::string, std::function<FormatterItem::ptr(const std::string& str)>> s_format_items = {
-#define XX(str , C) \
-        {#str , [](const std::string& fmt){return FormatterItem::ptr(new C(fmt));}}
-        // #str 表示 字符串
-        XX(m , MessageFormatterItem),
-        XX(p , LevelFormatterItem),
-        XX(r , ElapseFormatterItem),
-        XX(c , LoggerNameFormatterItem),
-        XX(t , ThreadIdFormatterItem),
-        XX(N , ThreadNameFormatterItem),
-        XX(F , FiberIdFormatterItem),
-        XX(l , LineFormatterItem),
-        XX(d , DataTimeFormatterItem),
-        XX(n , NewLineFormatterItem),
-        XX(f , FilenameFormatterItem),
-        XX(T , TabFormatterItem),
+    // 格式项映射表（关键说明）
+    static std::map<std::string, std::function<FormatterItem::ptr(const std::string&)>> s_format_items = {
+        // 格式说明：
+        // %m 消息内容 | %p 日志级别 | %r 耗时(毫秒)
+        // %c 日志器名称 | %t 线程ID | %N 线程名称
+        // %F 协程ID | %l 行号 | %d 时间 | %n 换行
+        // %f 文件名 | %T 制表符
+#define XX(str, C) {#str, [](const std::string& fmt) { return FormatterItem::ptr(new C(fmt)); }}
+        XX(m, MessageFormatterItem),    // 消息体
+        XX(p, LevelFormatterItem),      // 日志级别
+        XX(r, ElapseFormatterItem),     // 程序启动后的耗时
+        XX(c, LoggerNameFormatterItem), // 日志器名称
+        XX(t, ThreadIdFormatterItem),   // 线程ID
+        XX(N, ThreadNameFormatterItem), // 线程名称
+        XX(F, FiberIdFormatterItem),    // 协程ID
+        XX(l, LineFormatterItem),       // 行号
+        XX(d, DataTimeFormatterItem),   // 时间（可带格式参数）
+        XX(n, NewLineFormatterItem),    // 换行符
+        XX(f, FilenameFormatterItem),   // 文件名
+        XX(T, TabFormatterItem)         // 制表符
 #undef XX
     };
 
-    // for循环中的auto&用于引用遍历容器中的元素。
-    // 把每一种 日志格式 添加到 m_items。
-    // 后续直接在 m_items 里面找即可
-    for(auto& i : vec){
-        if(std::get<2>(i) == 0){
-            // 普通字符串输出 的 vec里 三元组 是 <str , "", 1> 
-            m_items.push_back(FormatterItem::ptr(new StringFormatterItem(std::get<0>(i))));
+    // 构建最终的格式化项列表
+    for(auto& i : vec) {
+        if(std::get<2>(i) == 0) {
+            // 普通字符串项
+            m_items.push_back(std::make_shared<StringFormatterItem>(std::get<0>(i)));
         } else {
+            // 查找格式项映射
             auto it = s_format_items.find(std::get<0>(i));
-            if(it == s_format_items.end()){
-                m_items.push_back(FormatterItem::ptr(new StringFormatterItem("<< error_format %" + std::get<1>(i) + ">>")));
+            if(it == s_format_items.end()) {
+                // 无效格式项处理
+                m_items.push_back(std::make_shared<StringFormatterItem>(
+                    "<<error_format %" + std::get<0>(i) + ">>"));
                 error = true;
             } else {
+                // 创建对应的格式化项（如时间格式化项）
                 m_items.push_back(it->second(std::get<1>(i)));
             }
         }
-        // std::cout << std::get<0>(i) << " - " <<  std::get<1>(i) << " - " << std::get<2>(i) << std::endl;
     }
 
-    if(error){
+    // 设置最终错误状态
+    if(error) {
         m_error = true;
-        return;
     }
 }
 
@@ -533,16 +507,20 @@ LogEventWrap::~LogEventWrap(){
 }
 
 LoggerManager::LoggerManager(){
-    m_root.reset(new Logger);               // 默认构造Logger，此时level是UNKNOW最低
-    // 默认是输出std，跟随m_root的level，以及使用默认的格式器
-    m_root->addAppender(LogAppender::ptr(new StdoutLogAppender(m_root->getLevel(), LogFormatter::ptr(new LogFormatter()))));  
-    m_loggers[m_root->getName()] = m_root;  // 添加到m_loggers
-    // 后续，配置项发送改变，能改变这个。
+    // 在这里创建的，都是默认static logger，并不是配置系统里的，所以我们不配置 BufferParams
+    // 先 默认 走 同步输出日志
+    std::unique_ptr<LoggerBuilder> builder(new LoggerBuilder("root", LogLevel::Level::UNKNOW));
+    builder->BuildLogAppender<StdoutLogAppender>(
+        LogLevel::UNKNOW, 
+        std::make_shared<LogFormatter>()
+    );
+    // 5. 显式构建并注册日志器
+    m_root = builder->Build();
+    m_loggers.emplace("root", m_root);  // 使用emplace替代insert
 }
 
 /**
- * 如果指定名称的日志器未找到，那么就新创建一个，但是新创建的Logger 不带 Apppender
- * 需要手动添加 Appender
+ * 如果指定名称的日志器未找到，那么就新创建一个，新创建的 Logger 配置默认的 Appender和默认的 LogFormatter 
  */
 Logger::ptr LoggerManager::getLogger(const std::string& name){
     MutexType::Lock lock(m_mutex);
@@ -550,11 +528,16 @@ Logger::ptr LoggerManager::getLogger(const std::string& name){
     if(it != m_loggers.end()){
         return it->second;
     }
-    Logger::ptr logger(new Logger(name));
-    // 添加一个默认的 std 输出器
-    logger->addAppender(LogAppender::ptr(new StdoutLogAppender(m_root->getLevel(), LogFormatter::ptr(new LogFormatter()))));
-    m_loggers[name] = logger;
-    return logger;
+    // 如果没有创建
+    std::unique_ptr<LoggerBuilder> builder(new LoggerBuilder(name));
+    // 默认std输出
+    builder->BuildLogAppender<StdoutLogAppender>(
+        LogLevel::UNKNOW, 
+        std::make_shared<LogFormatter>()
+    );
+    auto log = builder->Build();
+    m_loggers.emplace(name, log);
+    return log;
 }
 
 
@@ -572,192 +555,5 @@ std::string LoggerManager::toYamlString(){
     ss << node;
     return ss.str();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// 从配置文件中加载日志配置
-
-struct LogAppenderDefine
-{
-    int type = 0;   // 1 File, 2 Stdout
-    LogLevel::Level level = LogLevel::UNKNOW;       // 如果没有设置Appender的level，那么就用Logger的。
-    std::string pattern;
-    std::string file;
-
-    bool operator==(const LogAppenderDefine& oth) const {
-        return type == oth.type && 
-            pattern == oth.pattern && 
-            file == oth.file; 
-    }
-};
-
-struct LogDefine
-{
-    std::string name;
-    LogLevel::Level level = LogLevel::UNKNOW;
-    std::vector<LogAppenderDefine> appenders;
-
-    bool operator==(const LogDefine& oth) const {
-        return name == oth.name && level == oth.level && appenders == oth.appenders;
-    }
-
-    // set 需要重载 < 
-    bool operator < (const LogDefine& oth) const {
-        return name < oth.name;
-    }
-};
-
-template<>
-class LexicalCast<std::string, LogDefine>{
-public:
-    LogDefine operator() (const std::string& str){
-        YAML::Node node = YAML::Load(str);
-        LogDefine ld;
-        if(!node["name"].IsDefined()){
-            std::cout << "log config error: name is null, " << node << std::endl;
-            throw std::logic_error("log config name is null");
-        }
-        ld.name = node["name"].as<std::string>();
-        ld.level = LogLevel::FromString(node["level"].IsDefined() ? node["level"].as<std::string>() : "UNKNOW");
-
-        if(node["appenders"].IsDefined()){  // 对应 YAML 数组结构
-            LogAppenderDefine lad;
-            for(size_t i = 0 ; i < node["appenders"].size() ; ++i){
-                auto it = node["appenders"][i];
-                if(!it["type"].IsDefined()){
-                    std::cout << "log config error: appender type is null, " << it << std::endl;
-                    throw std::logic_error("log config appender type is null");
-                    continue;
-                }
-                std::string type_name = it["type"].as<std::string>();
-                if(type_name == "StdoutLogAppender"){
-                    lad.type = 2;
-                    if(it["pattern"].IsDefined()){
-                        lad.pattern = it["pattern"].as<std::string>();
-                    }
-                }else if(type_name == "FileLogAppender"){
-                    lad.type = 1;
-                    if(!it["file"].IsDefined()){
-                        std::cout << "log config error: FilelogAppender file is null, " << it << std::endl;
-                        continue;
-                    }
-                    lad.file = it["file"].as<std::string>();
-                    if(it["pattern"].IsDefined()){
-                        lad.pattern = it["pattern"].as<std::string>();
-                    }
-                } else {
-                    std::cout << "log appender config error: appender type is invalid, " << it << std::endl;
-                    continue;
-                }
-                if(it["level"].IsDefined()){    
-                    // 强制要求 appender的level >= logger的level。
-                    LogLevel::Level tem = LogLevel::FromString(it["level"].as<std::string>());
-                    lad.level = std::max(tem, ld.level);
-                }else{
-                    lad.level = ld.level;       // 如果没有定义Appender的level，就使用logger的
-                }
-                ld.appenders.push_back(lad);
-            }
-        }
-        return ld;
-    }
-};
-
-template<>
-class LexicalCast<LogDefine, std::string>{
-public:
-    std::string operator()(const LogDefine& ld){
-        YAML::Node node;
-        node["name"] = ld.name;
-        node["level"] = LogLevel::ToString(ld.level);
-
-        for(auto& it : ld.appenders){
-            YAML::Node items;
-            if(it.type == 1){
-                items["type"] = "FileLogAppender";
-                items["file"] = it.file;
-            }else if(it.type == 2){
-                items["type"] = "StdoutLogAppender";
-            }
-            if(!it.pattern.empty()){
-                items["pattern"] = it.pattern;
-            }
-            items["level"] = LogLevel::ToString(it.level);
-            node["appenders"].push_back(items);
-        }
-        std::stringstream ss;
-        ss << node;
-        return ss.str();
-    }
-};
-
-sylar::ConfigVar< std::set<LogDefine> >::ptr g_log_defines = sylar::Config::Lookup("logs", std::set<LogDefine>(), "logs");
-
-struct LogIniter{
-    LogIniter(){    // 构造函数
-        /**
-         * 这个函数是，真正的，根据Define的结构体，创建相应的logger，appender。
-         */
-        g_log_defines->addListener([](const std::set<LogDefine>& old_log, const std::set<LogDefine>& new_log){
-            // std::cout << "测试 仿函数调用" << std::endl;
-            // 新增
-            // 修改
-            // 删除
-            for(auto& i : new_log){
-                auto it = old_log.find(i);  // set<T> 按照 operator< 查找，那么也就是按照LogDefine name排序及查找
-                Logger::ptr logger;
-                if(it == old_log.end()){
-                    // 需要新增
-                    logger = SYLAR_LOG_NAME(i.name);
-                }else {
-                    if(!(i == *it)){    // name相同，但存在level或appender不同。
-                        logger = SYLAR_LOG_NAME(i.name);
-                    } else {
-                        continue;
-                    }
-                }
-                logger->setLevel(i.level);
-                logger->clearAppender();
-                //往logger里添加appender
-                for(auto &a : i.appenders){
-                    LogAppender::ptr ap;
-                    LogLevel::Level ll = a.level;
-                    LogFormatter::ptr lap;
-                    if(!a.pattern.empty()){
-                        lap.reset(new LogFormatter(a.pattern));
-                        if(lap->isError()){ // 如果日志格式有错误
-                            std::cout << "< formatter pattern error : " << i.name << " " << a.type << " " << a.pattern << " > " << std::endl;
-                            lap.reset(new LogFormatter); // 此时使用默认的。
-                        }
-                    } else {
-                        // 当没有 pattern，那么默认构造的时候，pattern有默认格式赋值。
-                        lap.reset(new LogFormatter);
-                    }
-
-                    if(a.type == 1){
-                        ap.reset(new FileLogAppender(a.file, ll, lap));
-                    } else if(a.type == 2){
-                        ap.reset(new StdoutLogAppender(ll, lap));
-                    }
-                    
-                    logger->addAppender(ap);
-                }
-            }
-            // 以配置文件为主，如果程序里定义了配置文件中未定义的logger，那么把程序里定义的logger设置成无效
-            // 新的没，旧的有。需要删除
-            for(auto &i : old_log){
-                auto it = new_log.find(i);
-                if(it == new_log.end()){
-                    auto logger = SYLAR_LOG_NAME(i.name);
-                    logger->setLevel(LogLevel::NOTEST);     // logger的级别足够大，就不会输出事件。
-                    logger->clearAppender();
-                }
-            }
-        });
-    }
-};
-
-//在main函数之前注册配置更改的回调函数
-//用于在更新配置时将log相关的配置加载到Config
-static LogIniter __log_init;
 
 }// namespace sylar

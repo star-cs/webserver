@@ -69,7 +69,7 @@ IOManager* IOManager::GetThis(){
     return dynamic_cast<IOManager*>(Scheduler::GetThis());
 }
 
-IOManager::FdContext::EventContext& IOManager::FdContext::getEventContex(Event event){
+IOManager::FdContext::EventContext& IOManager::FdContext::getEventContext(Event event){
     switch(event){
     case IOManager::READ:
         return read;
@@ -96,7 +96,7 @@ void IOManager::FdContext::triggerEvent(Event event){
      */
     SYLAR_ASSERT(events & event);   
     events = (Event)(events & ~event);
-    EventContext& ev_ctx = getEventContex(event);
+    EventContext& ev_ctx = getEventContext(event);
     if(ev_ctx.cb){
         ev_ctx.scheduler->schedule(ev_ctx.cb);
     } else{
@@ -134,7 +134,6 @@ IOManager::IOManager(size_t threads, bool use_caller, const std::string &name)
 } 
 
 IOManager::~IOManager(){
-    SYLAR_LOG_DEBUG(g_logger) << "~IOManager()";
     stop();
     close(m_epfd);
     close(m_tickleFds[0]);
@@ -189,12 +188,12 @@ int IOManager::addEvent(int fd, IOManager::Event event, std::function<void()> cb
     // 对epevent里的 fd_ctx 设置
     fd_ctx->events = (Event)(fd_ctx->events | event);
     // event是新的事件，设置对应的 EventContext
-    IOManager::FdContext::EventContext& ev_ctx = fd_ctx->getEventContex(event);
+    IOManager::FdContext::EventContext& ev_ctx = fd_ctx->getEventContext(event);
     ev_ctx.scheduler = Scheduler::GetThis();
     if(cb){
         ev_ctx.cb.swap(cb);
     }else{
-        ev_ctx.fiber = Fiber::GetThis();    // 如果回调函数 cb 为空，则把当前协程当成回调执行体 ~ （？这个不懂）
+        ev_ctx.fiber = Fiber::GetThis();    // 如果回调函数 cb 为空，则把当前协程当成回调执行体 ~
         SYLAR_ASSERT2(ev_ctx.fiber->getState() == Fiber::RUNNING, "state=" << ev_ctx.fiber->getState());
     }
     SYLAR_LOG_INFO(g_logger) << "addEvent";
@@ -241,7 +240,7 @@ bool IOManager::delEvent(int fd, Event event){
 
     // 修改 fd_ctx，重置事件，以及删除的event事件对应的EventContext需要被reset
     fd_ctx->events = new_events;
-    FdContext::EventContext& ev_ctx = fd_ctx->getEventContex(event);
+    FdContext::EventContext& ev_ctx = fd_ctx->getEventContext(event);
     fd_ctx->resetEventContext(ev_ctx);
     return true;
 }
@@ -344,13 +343,23 @@ void IOManager::contextResize(size_t size){
  * 如果没有调度线程处于idle状态，那就没必要发通知了。
  */
 void IOManager::tickle(){
-    SYLAR_LOG_DEBUG(g_logger) << "IOManager::tickle()";
+    SYLAR_LOG_INFO(g_logger) << "tickle()";
     if(!(hasIdleThreads())){
         return;
     }
     int rt = write(m_tickleFds[1], "T", 1);
     SYLAR_ASSERT(rt == 1);
 }
+
+void IOManager::tickle(const std::string& reason){
+    SYLAR_LOG_INFO(g_logger) << "tickle() reason=" << reason;
+    if(!(hasIdleThreads())){
+        return;
+    }
+    int rt = write(m_tickleFds[1], "T", 1);
+    SYLAR_ASSERT(rt == 1);
+}
+
 
 bool IOManager::stopping(){
     uint64_t timeout = 0;
@@ -494,10 +503,10 @@ void IOManager::idle(){
     } // end while(true)
 }
 
-
 void IOManager::onTimerInsertedAtFront(){
-    tickle();
+    tickle("onTimerInsertedAtFront");
 }
+
 
 
 } // end namespace sylar

@@ -10,9 +10,14 @@
 #include <vector>
 #include <stdio.h>
 #include <map>
+#include <cstring>
+#include <sys/eventfd.h>
+#include <iostream>
 #include "singleton.h"
 #include "mutex.h"
 #include "thread.h"
+#include "macro.h"
+#include "buffermanager.h"
 
 #define SYLAR_LOG_LEVEL(logger, level) \
     if(logger->getLevel() <= level) \
@@ -67,6 +72,20 @@ class LogLevel{
         static LogLevel::Level FromString(const std::string& str);    // 字符串转枚举表达
 };
 
+#pragma pack(push, 1)
+struct LogMeta {
+    uint64_t timestamp;    // 时间戳
+    uint32_t threadId;     // 线程ID
+    uint32_t fiberId;      // 协程ID
+    int32_t line;          // 行号
+    uint32_t elapse;
+    LogLevel::Level level; // 日志级别
+    uint16_t fileLen;      // 文件名长度（含空终止符）
+    uint16_t threadNameLen;// 线程名长度（含空终止符）
+    uint32_t msgLen;       // 消息内容长度
+};
+#pragma pack(pop)
+
 //日志事件
 class LogEvent{
     public:
@@ -88,6 +107,80 @@ class LogEvent{
         void format(const char* fmt, ...);
         void format(const char* fmt, va_list al);
 
+        Buffer::ptr serialize() const {
+            LogMeta meta{
+                .timestamp = m_time,
+                .threadId = m_threadId,
+                .fiberId = m_fiberId,
+                .line = m_line,
+                .elapse = m_elapse,
+                .level = m_level,
+                .fileLen = static_cast<uint16_t>(strlen(m_file) + 1), // 包含空终止符 strlen不包含终止符
+                .threadNameLen = static_cast<uint16_t>(m_threadName.size()),
+                .msgLen = static_cast<uint32_t>(m_ss.str().size())
+            };
+
+            const size_t total_need = sizeof(LogMeta) + meta.fileLen + meta.threadNameLen + meta.msgLen;
+            auto buffer = std::make_shared<Buffer>(total_need); // 使用 shared_ptr 管理内存
+
+            // 序列化元数据
+            buffer->push(reinterpret_cast<const char*>(&meta), sizeof(meta));
+
+            // 序列化变长数据（包含终止符）
+            buffer->push(m_file, meta.fileLen);
+            buffer->push(m_threadName.c_str(), meta.threadNameLen);
+            buffer->push(m_ss.str().c_str(), meta.msgLen);
+
+            return buffer; // 返回 shared_ptr
+        }
+
+        // 每次调用，解析一个LogEvent
+        static LogEvent::ptr deserialize(Buffer& buffer) {
+            if(buffer.readableSize() < sizeof(LogMeta)) {
+                return nullptr;
+            }
+            LogMeta meta;
+            memcpy(&meta, buffer.Begin(), sizeof(LogMeta));
+
+            const size_t total_need = sizeof(LogMeta) + meta.fileLen + meta.threadNameLen + meta.msgLen;
+            if(buffer.readableSize() < total_need){
+                return nullptr;
+            }
+
+            // 4. 提取各字段数据（使用临时指针操作）
+            const char* data_ptr = buffer.Begin() + sizeof(LogMeta);
+            
+            // 文件名处理（需保证C字符串终止）
+            std::string file(data_ptr, meta.fileLen);
+            data_ptr += meta.fileLen;
+
+            // 线程名
+            std::string thread_name(data_ptr, meta.threadNameLen);
+            data_ptr += meta.threadNameLen;
+
+            // 消息内容处理
+            std::string message(data_ptr, meta.msgLen);
+
+            // 5. 统一移动读指针（原子操作保证数据一致性）
+            buffer.moveReadPos(total_need);
+
+            // 6. 构建日志事件对象
+            auto event = std::make_shared<LogEvent>(
+                file.c_str(),
+                meta.line,
+                meta.elapse,
+                meta.threadId,
+                thread_name,
+                meta.fiberId,
+                meta.timestamp,
+                meta.level
+            );
+
+            event->getSS() << message;
+
+            return event;
+        }
+
     private:
         const char* m_file = nullptr;   //文件名
         int32_t m_line = 0;             //行号
@@ -99,7 +192,6 @@ class LogEvent{
         std::stringstream m_ss;
         LogLevel::Level m_level;        //日志级别
 };
-
 
 
 //日志格式器
@@ -151,9 +243,16 @@ class LogFormatter{
 class LogAppender{
     public:
         typedef std::shared_ptr<LogAppender> ptr;
-        typedef SpinkLock MutexType;
+        typedef Spinlock MutexType;
 
         LogAppender(LogLevel::Level level, LogFormatter::ptr formatter);
+        
+        
+        template <typename LogLogAppenderType, typename... Args>
+        static std::shared_ptr<LogLogAppenderType> CreateAppender(Args && ... args){
+            return std::make_shared<LogLogAppenderType>(std::forward<Args>(args)...);
+        }
+
         virtual ~LogAppender(){}
         //纯虚函数
         virtual void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) = 0;
@@ -197,16 +296,76 @@ private:
     uint64_t m_lastTime;              // 文件最近一次打开的事件 事件
 };
 
-
 //日志器
-//继承 public std::enable_shared_from_this<Logger> 可以在成员函数获得自己的shard_ptr
+//继承 public std::enable_shared_from_this<Logger> 可以在成员函数获得自己的shard_ptr、
+//1. LoggerBuild.Build()之后
+//2. 配置ConfigIOM
 class Logger : public std::enable_shared_from_this<Logger>{
     public:
         typedef std::shared_ptr<Logger> ptr;
-        typedef SpinkLock MutexType;
+        typedef Spinlock MutexType;
 
-        Logger(const std::string name = "root");
-        void log(LogEvent::ptr event);
+        Logger(
+            const std::string name, 
+            LogLevel::Level level,
+            std::vector<LogAppender::ptr>& appenders, 
+            const BufferParams& bufParams
+        )   :m_name(name), 
+            m_level(level), 
+            m_appenders(appenders.begin(), appenders.end())
+        {
+            if(bufParams.isValid()){
+                m_bufMgr = std::make_shared<BufferManager>(
+                    std::bind(&Logger::realLog, this, std::placeholders::_1), bufParams);
+            }else{
+                m_bufMgr = nullptr;
+            }
+        }
+
+        // 由 iom_log 写入真正的文件。
+        void realLog(Buffer::ptr buffer) { // 1. 修改参数类型为 Buffer::ptr
+            if (!buffer) { // 2. 空指针检查
+                std::cerr << "realLog: invalid buffer pointer" << std::endl;
+                return;
+            }
+
+            while (true) {
+                LogEvent::ptr event = LogEvent::deserialize(*buffer);
+                // 理论上 buffer 里是多个Event的数据，不存在处理失败。
+
+                if (event) {
+                    auto self = shared_from_this();
+                    for (auto& appender : m_appenders) {
+                        appender->log(self, event);
+                    }
+                } else {
+                    if (buffer->readableSize() == 0) { // 读完了
+                        break;
+                    } else {
+                        // 处理失败但数据未读完（说明发生严重错误）
+                        std::cout << "Log deserialization error, remaining data: " << buffer->readableSize() << std::endl;
+                        break;
+                    }
+                }
+            }
+        }
+ 
+        // 写入缓冲区
+        // 多个线程的 写日志，写入缓存区
+        void log(LogEvent::ptr event){
+            if(event->getLevel() >= m_level){
+                if(m_bufMgr != nullptr){
+                    Buffer::ptr buf = event->serialize();
+                    m_bufMgr->push(buf);
+                }else{
+                    // 如果没有配置iom，直接同步输出日志
+                    auto self = shared_from_this();
+                    for(auto& appender : m_appenders) {
+                        appender->log(self, event);
+                    }
+                }
+            }
+        }
 
         void setLevel(LogLevel::Level level) {m_level = level;}
         LogLevel::Level getLevel(){return m_level;}
@@ -220,9 +379,59 @@ class Logger : public std::enable_shared_from_this<Logger>{
     private:
         std::string m_name;                         //日志名称
         LogLevel::Level m_level;                    //日志级别，当事件的日志级别大于等于该日志器的级别时，才输出
-        std::list<LogAppender::ptr> m_appenders;    //Appender集合
+        std::vector<LogAppender::ptr> m_appenders;  //Appender集合
         MutexType m_mutex;
+        BufferManager::ptr m_bufMgr;                // 双缓冲区（所有logger公用一个BufferManager双缓冲区）
 };
+
+
+class LoggerBuilder{
+    public:
+        using ptr = std::shared_ptr<LoggerBuilder>;
+        // 默认构造root，UNKNOW
+        LoggerBuilder(const std::string &name = "root", 
+                    LogLevel::Level level = LogLevel::Level::UNKNOW) 
+            : m_logger_name(name),  m_level(level)
+        {}
+ 
+        void setLoggerName(std::string name = "root") { m_logger_name = std::move(name);}
+        void setLoggerLevel(LogLevel::Level level) { m_level = level;}
+        void setBufferParams(const BufferParams& params) {m_bufParams = params;}
+
+        template<typename LogAppenderType, typename... Args>
+        void BuildLogAppender(Args&& ... args){
+            m_appenders.emplace_back(
+                LogAppender::CreateAppender<LogAppenderType>(std::forward<Args>(args)...)
+            );
+        }
+
+        Logger::ptr Build(){
+            EnsureDefaults();
+            return std::make_shared<Logger>(
+                m_logger_name, 
+                m_level,
+                m_appenders,
+                m_bufParams
+            );
+        }
+
+    private:
+        void EnsureDefaults() {
+            if (m_appenders.empty()) {
+                BuildLogAppender<StdoutLogAppender>(
+                    LogLevel::UNKNOW, 
+                    std::make_shared<LogFormatter>()
+                );
+            }
+        }
+
+    private:
+        std::string m_logger_name;// 日志器名称
+        LogLevel::Level m_level;
+        std::vector<LogAppender::ptr> m_appenders; // 写日志方式
+        BufferParams m_bufParams;
+};
+
 
 // 使用LogEventWarp管理 event和logger，在析构的时候，调用logger的方法 流式输出 event
 class LogEventWrap{
@@ -238,8 +447,17 @@ class LogEventWrap{
 
 class LoggerManager{
     public:
-        typedef SpinkLock MutexType;
+        typedef Spinlock MutexType;
         LoggerManager();
+
+        void addLogger(const Logger::ptr & logger){
+            if (!logger) {
+                throw std::invalid_argument("Logger pointer cannot be null");
+            }        
+            // 直接覆盖
+            MutexType::Lock lock(m_mutex);
+            m_loggers[logger->getName()] = logger;
+        }
         Logger::ptr getLogger(const std::string& name);
         Logger::ptr getRoot(){return m_root;}
         void init();

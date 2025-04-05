@@ -302,7 +302,7 @@ public:
         try{
             setValue(FromString()(val));
         }catch(std::exception& e){
-            SYLAR_LOG_ERROR(SYLAR_LOG_ROOT()) << "ConfigVar::toString exception "
+            SYLAR_LOG_ERROR(SYLAR_LOG_ROOT()) << "ConfigVar::fromString exception "
                 << e.what() << " convert: string to " << getTypeName()
                 << " - " << val;
         }
@@ -369,6 +369,7 @@ public:
     // 所以 map 的键值不能为模板类，需要一个基类
     typedef std::map<std::string, ConfigVarBase::ptr> ConfigVarMap;
     typedef RWMutex RWMutexType;
+    
     template<class T>
     static typename ConfigVar<T>::ptr Lookup(const std::string& name, 
         const T& default_value, const std::string& description = ""){
@@ -400,6 +401,7 @@ public:
     }
 
     static void LoadFromYaml(const YAML::Node& root);
+
     static ConfigVarBase::ptr LookupBase(const std::string& name);
     static void Visit(std::function<void(ConfigVarBase::ptr)> cb);      // 传入仿函数，用于操作s_datas
 
@@ -413,8 +415,6 @@ private:
         static RWMutexType m_mutex;
         return m_mutex;
     }
-
-
 };
 
 }; // namespace sylar
