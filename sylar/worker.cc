@@ -92,7 +92,7 @@ void WorkerManager::stop() {
     }
     for(auto& i : m_datas) {
         for(auto& n : i.second) {
-            // n->schedule([](){});
+            n->schedule([](){});
             n->stop();
         }
     }

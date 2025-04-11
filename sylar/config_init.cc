@@ -31,7 +31,6 @@ public:
             bmd.size = buf_mgr_node["size"].IsDefined() ? buf_mgr_node["size"].as<size_t>() : 0;
             bmd.threshold = buf_mgr_node["threshold"].IsDefined() ? buf_mgr_node["threshold"].as<size_t>() : 0;
             bmd.linear_growth = buf_mgr_node["linear_growth"].IsDefined() ? buf_mgr_node["linear_growth"].as<size_t>() : 0;
-            bmd.swap_threshold = buf_mgr_node["swap_threshold"].IsDefined() ? buf_mgr_node["swap_threshold"].as<size_t>() : 0;
             bmd.swap_time = buf_mgr_node["swap_time"].IsDefined() ? buf_mgr_node["swap_time"].as<size_t>() : 0;
             
             auto errors = bmd.ValidateBufMgrDefine();
@@ -55,26 +54,46 @@ public:
                     throw std::logic_error("log config appender type is null");
                     continue;
                 }
-                std::string type_name = it["type"].as<std::string>();
-                if(type_name == "StdoutLogAppender"){
-                    lad.type = 2;
-                    if(it["pattern"].IsDefined()){
-                        lad.pattern = it["pattern"].as<std::string>();
-                    }
-                }else if(type_name == "FileLogAppender"){
-                    lad.type = 1;
-                    if(!it["file"].IsDefined()){
-                        std::cout << "log config error: FilelogAppender file is null, " << it << std::endl;
-                        continue;
-                    }
-                    lad.file = it["file"].as<std::string>();
-                    if(it["pattern"].IsDefined()){
-                        lad.pattern = it["pattern"].as<std::string>();
-                    }
-                } else {
-                    std::cout << "log appender config error: appender type is invalid, " << it << std::endl;
-                    continue;
+                lad.type = AppenderType::FromString(it["type"].as<std::string>());
+                switch(lad.type)
+                {
+                    case AppenderType::Type::StdoutLogAppender:
+                        if(it["pattern"].IsDefined()){
+                            lad.pattern = it["pattern"].as<std::string>();
+                        }
+                        break;
+                    case AppenderType::Type::FileLogAppender:
+                        if(it["pattern"].IsDefined()){
+                            lad.pattern = it["pattern"].as<std::string>();
+                        }
+                        if(!it["file"].IsDefined()){
+                            std::cout << "log config error: FilelogAppender file is null, " << it << std::endl;
+                            continue;
+                        }
+                        lad.file = it["file"].as<std::string>();
+                        lad.flush_rule = it["flush_rule"].IsDefined() ? FlushRule::FromString(it["flush_rule"].as<std::string>()) : FlushRule::Rule::FFLUSH;
+                        break;
+                    case AppenderType::Type::RotatingFileLogAppender:
+                        if(it["pattern"].IsDefined()){
+                            lad.pattern = it["pattern"].as<std::string>();
+                        }
+                        if(!it["file"].IsDefined()){
+                            std::cout << "log config error: FilelogAppender file is null, " << it << std::endl;
+                            continue;
+                        }
+                        lad.file = it["file"].as<std::string>();
+                        lad.flush_rule = it["flush_rule"].IsDefined() ? FlushRule::FromString(it["flush_rule"].as<std::string>()) : FlushRule::Rule::FFLUSH;
+                        if(!it["max_size"].IsDefined()){
+                            std::cout << "log config error: RotatingFileLogAppender max_size is null, " << it << std::endl;
+                        }
+                        lad.max_size = it["max_size"].as<size_t>();
+                        lad.max_file = it["max_file"].IsDefined() ? it["max_file"].as<size_t>() : 0;  // 0，就是无限增加
+                        break;
+                    default:
+                        std::cout << "log config error: appender type is invalid, " << it << std::endl;
                 }
+                
+                
                 if(it["level"].IsDefined()){    
                     // 强制要求 appender的level >= logger的level。
                     LogLevel::Level tem = LogLevel::FromString(it["level"].as<std::string>());
@@ -103,18 +122,31 @@ public:
             buf_mgr_node["size"] = ld.bufMgr.size;
             buf_mgr_node["threshold"] = ld.bufMgr.threshold;
             buf_mgr_node["linear_growth"] = ld.bufMgr.linear_growth;
-            buf_mgr_node["swap_threshold"] = ld.bufMgr.swap_threshold;
             buf_mgr_node["swap_time"] = ld.bufMgr.swap_time;
             node["buf_mgr"] = buf_mgr_node;
         }
         for(auto& it : ld.appenders){
             YAML::Node items;
-            if(it.type == 1){
-                items["type"] = "FileLogAppender";
-                items["file"] = it.file;
-            }else if(it.type == 2){
-                items["type"] = "StdoutLogAppender";
+            switch(it.type){
+                case AppenderType::Type::StdoutLogAppender:
+                    items["type"] = "StdoutLogAppender";
+                    break;
+                case AppenderType::Type::FileLogAppender:
+                    items["type"] = "FileLogAppender";
+                    items["file"] = it.file;
+                    items["flush_rule"] = FlushRule::ToString(it.flush_rule);
+                    break;
+                case AppenderType::Type::RotatingFileLogAppender:
+                    items["type"] = "RotatingFileLogAppender";  // 保持与类名一致
+                    items["file"] = it.file;
+                    items["flush_rule"] = FlushRule::ToString(it.flush_rule);
+                    items["max_size"] = it.max_size;
+                    items["max_file"] = it.max_file;
+                    break;
+                default:
+                    std::cout << "Unknown appender type" << std::endl;
             }
+                
             if(!it.pattern.empty()){
                 items["pattern"] = it.pattern;
             }
@@ -168,10 +200,18 @@ struct LogIniter{
                         lap.reset(new LogFormatter);
                     }
 
-                    if(a.type == 1){
-                        builder->BuildLogAppender<FileLogAppender>(a.file, ll, lap);
-                    } else if(a.type == 2){
-                        builder->BuildLogAppender<StdoutLogAppender>(ll, lap);
+                    switch (a.type) {
+                        case AppenderType::Type::StdoutLogAppender:
+                            builder->BuildLogAppender<StdoutLogAppender>(ll, lap);
+                            break;
+                        case AppenderType::Type::FileLogAppender:
+                            builder->BuildLogAppender<FileLogAppender>(a.file, ll, lap, a.flush_rule);
+                            break;
+                        case AppenderType::Type::RotatingFileLogAppender:
+                            builder->BuildLogAppender<RotatingFileLogAppender>(a.file, ll, lap, a.max_size, a.max_file, a.flush_rule);
+                            break;
+                        default:
+                            SYLAR_LOG_ERROR(SYLAR_LOG_ROOT()) << "Invalid appender type="<< a.type;
                     }
                 }
                 if(i.bufMgr.isValid()){
@@ -185,7 +225,6 @@ struct LogIniter{
                         i.bufMgr.size,
                         i.bufMgr.threshold,
                         i.bufMgr.linear_growth,
-                        i.bufMgr.swap_threshold,
                         i.bufMgr.swap_time,
                         cur_worker
                     );

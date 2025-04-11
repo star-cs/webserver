@@ -12,7 +12,6 @@ logs:
       #     - type: io
       #       type: ASYNC_SAFE
       #       size: 2000000
-      #       swap_threshold: 1000
       #       swap_time: 1000
       level: info
       appenders:
@@ -29,7 +28,6 @@ logs:
       #       size: 2000000
       #       threshold: 10000000
       #       linear_growth: 1000000
-      #       swap_threshold: 1000
       #       swap_time: 3000
       appenders:
           - type: StdoutLogAppender # 这里用的就是默认的 

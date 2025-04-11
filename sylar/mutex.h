@@ -436,15 +436,39 @@ public:
     bool tryWait();
     void wait();
     void notify();
-
     size_t getConcurrency() const { return m_concurrency;}
     void reset() { m_concurrency = 0;}
 private:
+    void show();
+
     MutexType m_mutex;
     std::list<std::pair<Scheduler*, Fiber::ptr > > m_waiters;
     size_t m_concurrency;
 };
 
+class FiberCondition{
+public:
+    using MutexType = Spinlock;
+
+    void wait(MutexType::Lock& lock);
+
+    template <typename Predicate>
+    void wait(MutexType::Lock& lock, Predicate pred){
+        while(!pred()){
+            wait(lock);
+        }
+    }
+
+    void notify_one();
+    void notify_all();
+
+private:
+    void printWaiters() const;
+
+private:
+    MutexType m_mutex;
+    std::list<std::pair<Scheduler*, Fiber::ptr>> m_waiters;
+};
 
 
 }

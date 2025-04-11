@@ -94,6 +94,7 @@ void IOManager::FdContext::triggerEvent(Event event){
      * cancelEvent 清除事件，不再关注该事件，直接触发对应的上下文任务
      * 注册的IO事件是一次性的，如果想持续关注某个socket fd的读写事件，那么每次触发事件后都要重新添加。~ 
      */
+    SYLAR_LOG_DEBUG(g_logger) << "triggerEvent called, fd=" << fd << ", event=" << (EPOLL_EVENTS)event;
     SYLAR_ASSERT(events & event);   
     events = (Event)(events & ~event);
     EventContext& ev_ctx = getEventContext(event);
@@ -134,6 +135,7 @@ IOManager::IOManager(size_t threads, bool use_caller, const std::string &name)
 } 
 
 IOManager::~IOManager(){
+    SYLAR_LOG_DEBUG(g_logger) << "IOManager::~IOManager() start";
     stop();
     close(m_epfd);
     close(m_tickleFds[0]);
@@ -147,6 +149,9 @@ IOManager::~IOManager(){
 
 // 返回 0 成功， 返回 -1 失败
 int IOManager::addEvent(int fd, IOManager::Event event, std::function<void()> cb){
+    SYLAR_LOG_DEBUG(g_logger) << "addEvent called, fd=" << fd 
+                          << ", event=" << (EPOLL_EVENTS)event 
+                          << ", has_cb=" << (cb ? "true" : "false");
     FdContext* fd_ctx = nullptr;
     RWMutexType::ReadLock lock(m_mutex);
     if((int)m_fdContexts.size() > fd){
@@ -196,13 +201,13 @@ int IOManager::addEvent(int fd, IOManager::Event event, std::function<void()> cb
         ev_ctx.fiber = Fiber::GetThis();    // 如果回调函数 cb 为空，则把当前协程当成回调执行体 ~
         SYLAR_ASSERT2(ev_ctx.fiber->getState() == Fiber::RUNNING, "state=" << ev_ctx.fiber->getState());
     }
-    SYLAR_LOG_INFO(g_logger) << "addEvent";
-
     return 0;
 }
 
 
 bool IOManager::delEvent(int fd, Event event){
+    SYLAR_LOG_DEBUG(g_logger) << "delEvent called, fd=" << fd 
+                          << ", event=" << (EPOLL_EVENTS)event;
     FdContext* fd_ctx = nullptr;
     RWMutexType::ReadLock lock(m_mutex);
     if((int)m_fdContexts.size() >= fd){
@@ -247,6 +252,7 @@ bool IOManager::delEvent(int fd, Event event){
 
 
 bool IOManager::cancelEvent(int fd, Event event){
+    SYLAR_LOG_DEBUG(g_logger) << "cancelEvent called, fd=" << fd << ", event=" << (EPOLL_EVENTS)event;
     FdContext* fd_ctx = nullptr;
     RWMutexType::ReadLock lock(m_mutex);
     if((int)m_fdContexts.size() >= fd){
@@ -327,6 +333,7 @@ bool IOManager::cancelAll(int fd){
 }
 
 void IOManager::contextResize(size_t size){
+    SYLAR_LOG_DEBUG(g_logger) << "contextResize called, new_size=" << size;
     m_fdContexts.resize(size);
     for(size_t i = 0 ; i < size ; i ++){
         if(!m_fdContexts[i]){
@@ -343,23 +350,12 @@ void IOManager::contextResize(size_t size){
  * 如果没有调度线程处于idle状态，那就没必要发通知了。
  */
 void IOManager::tickle(){
-    SYLAR_LOG_INFO(g_logger) << "tickle()";
     if(!(hasIdleThreads())){
         return;
     }
     int rt = write(m_tickleFds[1], "T", 1);
     SYLAR_ASSERT(rt == 1);
 }
-
-void IOManager::tickle(const std::string& reason){
-    SYLAR_LOG_INFO(g_logger) << "tickle() reason=" << reason;
-    if(!(hasIdleThreads())){
-        return;
-    }
-    int rt = write(m_tickleFds[1], "T", 1);
-    SYLAR_ASSERT(rt == 1);
-}
-
 
 bool IOManager::stopping(){
     uint64_t timeout = 0;
@@ -378,11 +374,14 @@ bool IOManager::stopping(uint64_t& next_timeout){
  * 2. 关注当前注册的所有IO事件有没有触发，如果有触发，那就执行 ~  IO事件对应的 回调函数
  */
 void IOManager::idle(){
-    SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle()";
+    SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle() started";
 
     // 一次epoll_wait最多检测 256 个就绪事件
     const uint64_t MAX_EVENTS = 256;
+
     epoll_event* events = new epoll_event[MAX_EVENTS]();
+    
+    // 通过shared_ptr管理，避免内存泄漏
     std::shared_ptr<epoll_event> shared_events(events, [](epoll_event* ev){
         delete[] ev;
     });
@@ -391,7 +390,7 @@ void IOManager::idle(){
         // 获取下一个定时器的超时事件，顺便判断调度器是否停止。
         uint64_t next_timeout = 0;
         if(stopping(next_timeout)){
-            SYLAR_LOG_DEBUG(g_logger) << "name=" << getName() << " idle stopping exit";
+            SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle() stopping, name=" << getName();
             break;
         }
         int rt = 0;
@@ -402,14 +401,15 @@ void IOManager::idle(){
             }else{
                 next_timeout = MAX_TIMEOUT;
             }
+            SYLAR_LOG_DEBUG(g_logger) << "epoll_wait with timeout=" << next_timeout;
             rt = epoll_wait(m_epfd, events, MAX_EVENTS, (int)next_timeout);
 
             if(rt < 0){
                 if(errno == EINTR){ //在任何请求的事件发生或超时到期之前，信号处理程序中断了该调用
+                    SYLAR_LOG_WARN(g_logger) << "epoll_wait interrupted by signal, retrying";
                     continue;
                 }
-                SYLAR_LOG_ERROR(g_logger) << "epoll_wait(" << m_epfd << ") (rt="
-                    << rt << ") (errno=" << errno << ") (errstr:" << strerror(errno) << ")";
+                SYLAR_LOG_ERROR(g_logger) << "epoll_wait error, errno=" << errno << ", errstr=" << strerror(errno);
                 break;
             }else{
                 break;
@@ -428,6 +428,7 @@ void IOManager::idle(){
 
         for(int i = 0 ; i < rt; ++i){
             epoll_event& event = events[i];
+
             // ticklefd[0]用于通知协程调度，这时只需要把管道读完
             if(event.data.fd == m_tickleFds[0]){ 
                 uint8_t dummy[256];
@@ -461,6 +462,7 @@ void IOManager::idle(){
 
             // 如果触发了的事件，和 上下文里的 事件任务 没有重合，那就取消
             if((fd_ctx->events & real_events) == NONE){
+                SYLAR_LOG_WARN(g_logger) << "No matching events for fd=" << fd_ctx->fd;
                 continue;
             }
 
@@ -471,18 +473,18 @@ void IOManager::idle(){
 
             int rt2 = epoll_ctl(m_epfd, op, fd_ctx->fd, &event);
             if (rt2) {
-                SYLAR_LOG_ERROR(g_logger) << "epoll_ctl(" << m_epfd << ", " << (EpollCtlOp)op << ", " << fd_ctx->fd 
-                                << ", " << (EPOLL_EVENTS)event.events << "):"
-                                << rt << "(" << errno << ") (" << strerror(errno) << ") 原本的  fd_ctx->events=" << (EPOLL_EVENTS)fd_ctx->events;
-        
+                SYLAR_LOG_ERROR(g_logger) << "epoll_ctl failed, fd=" << fd_ctx->fd
+                                          << ", errno=" << errno << ", errstr=" << strerror(errno);
                 continue;
             }
 
             if(real_events & READ){
+                SYLAR_LOG_DEBUG(g_logger) << "Triggering READ event for fd=" << fd_ctx->fd;
                 fd_ctx->triggerEvent(READ);
                 --m_pendingEventCount;
             }
             if(real_events & WRITE){
+                SYLAR_LOG_DEBUG(g_logger) << "Triggering WRITE event for fd=" << fd_ctx->fd;
                 fd_ctx->triggerEvent(WRITE);
                 --m_pendingEventCount;
             }
@@ -498,13 +500,17 @@ void IOManager::idle(){
         // cur.reset();
 
         // raw_ptr->yield();
+        SYLAR_LOG_DEBUG(g_logger) << "Yielding idle fiber";
         Fiber::GetThis()->yield();
         
     } // end while(true)
+
+    SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle() exited";
 }
 
 void IOManager::onTimerInsertedAtFront(){
-    tickle("onTimerInsertedAtFront");
+    SYLAR_LOG_DEBUG(g_logger) << "onTimerInsertedAtFront() called";
+    tickle();
 }
 
 

@@ -7,6 +7,7 @@
 #include <sys/eventfd.h>
 #include <functional>
 #include <atomic>
+#include "macro.h"
 
 namespace sylar {
     // log -> buffermanager -> iomanager -> log 存在循环依赖。
@@ -43,7 +44,6 @@ namespace sylar {
         size_t size = 0;
         size_t threshold = 0;
         size_t linear_growth = 0;
-        size_t swap_threshold = 0;
         size_t swap_time = 0;
         IOManager* iom = nullptr;
 
@@ -53,14 +53,12 @@ namespace sylar {
             size_t buffer_size,
             size_t thresh,
             size_t linear,
-            size_t swap_thresh,
             size_t time,
             IOManager* io_manager)
         : type(async_type),
             size(buffer_size),
             threshold(thresh),
             linear_growth(linear),
-            swap_threshold(swap_thresh),
             swap_time(time),
             iom(io_manager) {}
 
@@ -79,12 +77,9 @@ namespace sylar {
                     return false;
             }
             
-            if(swap_threshold <= 0) 
-                return false;
             if(swap_time <= 0) 
                 return false;
-            if(swap_threshold >= size) 
-                return false;
+
             if(type == AsyncType::Type::UNKNOW) 
                 return false;
 
@@ -97,11 +92,13 @@ namespace sylar {
     class Buffer {
     public:
         using ptr = std::shared_ptr<Buffer>;
+        using MutexType = Spinlock;
 
         Buffer(size_t buffer_size);
         Buffer(size_t buffer_size, size_t threshold, size_t linear_growth);
         
         void push(const char* data, size_t len);
+        void push(const std::string& str);
         char* readBegin(int len);
         bool isEmpty();
         void swap(Buffer& buf);
@@ -116,6 +113,7 @@ namespace sylar {
         void ToBeEnough(size_t len);
 
     private:
+        MutexType m_mutex;
         size_t m_buffer_size;
         size_t m_threshold;
         size_t m_linear_growth;
@@ -124,7 +122,7 @@ namespace sylar {
         size_t m_read_pos = 0;
     };
 
-    using functor = std::function<void(Buffer::ptr&)>;
+    using functor = std::function<void(Buffer::ptr)>;
 
     class BufferManager {
     public:
@@ -136,7 +134,6 @@ namespace sylar {
             size_t buffer_size,
             size_t threshold,
             size_t linear_growth,
-            size_t swap_threshold,
             size_t swap_time,
             IOManager* iom);
 
@@ -144,23 +141,27 @@ namespace sylar {
 
         ~BufferManager();
         
-        void stop();
         void push(const char* data, size_t len);
         void push(Buffer::ptr buffer);
+
+    private:
+        void stop();
         
     protected:
-        void swap_pop();
-        void swap_pop_one();
+        void TimerThreadEntry();
+        void ThreadEntry();
+
     private:
         MutexType m_mutex;
+        MutexType m_swap_mutex;
         std::atomic<bool> m_stop;
-        FiberSemaphore m_sem_producer;
-        FiberSemaphore m_sem_consumer;
+        std::atomic<bool> m_swap_status;       // 判断 消费者缓冲区是否有人在使用
+        FiberCondition m_cond_producer;
+        FiberCondition m_cond_consumer;
         AsyncType::Type m_asyncType;
         Buffer::ptr m_buffer_productor;
         Buffer::ptr m_buffer_consumer;
         functor m_callback;
-        size_t m_swap_threshold;
         size_t m_swap_time;
         std::shared_ptr<Timer> m_timer;
         void swap_buffers() {

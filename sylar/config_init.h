@@ -8,11 +8,14 @@ namespace sylar{
 
     struct LogAppenderDefine
     {
-        int type = 0;   // 1 File, 2 Stdout
+        AppenderType::Type type;  
         LogLevel::Level level = LogLevel::UNKNOW;       // 如果没有设置Appender的level，那么就用Logger的。
         std::string pattern;
         std::string file;
-    
+        FlushRule::Rule flush_rule;
+        size_t max_size;
+        size_t max_file;
+
         bool operator==(const LogAppenderDefine& oth) const {
             return type == oth.type && 
                 pattern == oth.pattern && 
@@ -26,7 +29,6 @@ namespace sylar{
         size_t size = 0;
         size_t threshold = 0;
         size_t linear_growth = 0;
-        size_t swap_threshold = 0;
         size_t swap_time = 0;
 
         bool operator==(const BufMgrDefine& oth) const{
@@ -35,7 +37,6 @@ namespace sylar{
                 && size == oth.size 
                 && threshold == oth.threshold 
                 && linear_growth == oth.linear_growth 
-                && swap_threshold == oth.swap_threshold 
                 && swap_time == oth.swap_time;
         }
 
@@ -53,12 +54,8 @@ namespace sylar{
                     errors.emplace_back("linear_growth必须大于0");
             }
             
-            if(swap_threshold <= 0) 
-                errors.emplace_back("swap_threshold必须大于0");
             if(swap_time <= 0) 
                 errors.emplace_back("swap_time必须大于0");
-            if(swap_threshold >= size) 
-                errors.emplace_back("swap_threshold必须小于size");
             if(work_type.empty()) 
                 errors.emplace_back("work_type不能为空");
             if(type == AsyncType::Type::UNKNOW) 

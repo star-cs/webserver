@@ -3,30 +3,38 @@ logs:
       buf_mgr:
           work_type: io
           type: ASYNC_SAFE
-          size: 2000000
-          swap_threshold: 1000
+          size: 500
           swap_time: 10000
-      level: info
+      level: debug
       appenders:
           # - type: StdoutLogAppender   # 自定义格式
           #   pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
-          - type: FileLogAppender
+
+          # - type: FileLogAppender
+          #   pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
+          #   file: /home/yang/projects/webserver/tests_log/FileLogAppender.log
+
+          - type: RotatingFileLogAppender
             pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
-            file: /home/yang/projects/webserver/tests/test.txt
-    - name: system
-      level: error
-      buf_mgr:
-          work_type: io
-          type: ASYNC_SAFE
-          size: 2000000
-          threshold: 10000000
-          linear_growth: 1000000
-          swap_threshold: 1000
-          swap_time: 10000
-      appenders:
-          # - type: StdoutLogAppender # 这里用的就是默认的 
-          - type: FileLogAppender   
-            file: /home/yang/projects/webserver/tests/test.txt
-          # - type: FileLogAppender  
+            file: /home/yang/projects/webserver/tests_log/Rotating_log/  # 这里应该传入文件夹名
+            flush_rule: FFLUSH
+            max_size: 10000
+            max_file: 3   # 0 是无限增加日志，不写max_file也是无限增加日志文件
+
+
+    # - name: system
+    #   level: error
+    #   buf_mgr:
+    #       work_type: io
+    #       type: ASYNC_SAFE
+    #       size: 2000000
+    #       threshold: 10000000
+    #       linear_growth: 1000000
+    #       swap_time: 10000
+    #   appenders:
+    #       # - type: StdoutLogAppender # 这里用的就是默认的 
+    #       - type: FileLogAppender   
+    #         file: /home/yang/projects/webserver/tests_log/test.txt
+    #       # - type: FileLogAppender  
           #   level: error 
-          #   file: /home/yang/projects/webserver/tests/system_error.txt
+          #   file: /home/yang/projects/webserver/tests_log/system_error.txt

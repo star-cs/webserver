@@ -22,7 +22,7 @@
 #define SYLAR_LOG_LEVEL(logger, level) \
     if(logger->getLevel() <= level) \
         sylar::LogEventWrap(logger, sylar::LogEvent::ptr( \
-            new sylar::LogEvent(__FILE__, __LINE__, 0 , \
+            new sylar::LogEvent(std::string(__FILE__), __LINE__, 0 , \
                             sylar::GetThreadId(), sylar::Thread::GetName(), \
                             sylar::GetFiberId(), time(0), level))).getSS() 
 
@@ -80,8 +80,8 @@ struct LogMeta {
     int32_t line;          // 行号
     uint32_t elapse;
     LogLevel::Level level; // 日志级别
-    uint16_t fileLen;      // 文件名长度（含空终止符）
-    uint16_t threadNameLen;// 线程名长度（含空终止符）
+    uint16_t fileLen;      // 文件名长度
+    uint32_t threadNameLen;// 线程名长度
     uint32_t msgLen;       // 消息内容长度
 };
 #pragma pack(pop)
@@ -90,9 +90,9 @@ struct LogMeta {
 class LogEvent{
     public:
         typedef std::shared_ptr<LogEvent> ptr;      //使用ptr，就避免了对象的复制和拷贝
-        LogEvent(const char* file, int32_t line, uint32_t elapse, uint32_t threadId, const std::string& threadName, uint32_t fiberId , uint64_t time, LogLevel::Level level);
+        LogEvent(std::string file, int32_t line, uint32_t elapse, uint32_t threadId, const std::string& threadName, uint32_t fiberId , uint64_t time, LogLevel::Level level);
          
-        const char* getFile() const {return m_file;}
+        const std::string& getFile() const {return m_file;}
         int32_t getLine() const {return m_line;}
         uint32_t getElapse() const {return m_elapse;}
         uint32_t getThreadId() const {return m_threadId;}
@@ -115,7 +115,7 @@ class LogEvent{
                 .line = m_line,
                 .elapse = m_elapse,
                 .level = m_level,
-                .fileLen = static_cast<uint16_t>(strlen(m_file) + 1), // 包含空终止符 strlen不包含终止符
+                .fileLen = static_cast<uint16_t>(m_file.size()),
                 .threadNameLen = static_cast<uint16_t>(m_threadName.size()),
                 .msgLen = static_cast<uint32_t>(m_ss.str().size())
             };
@@ -127,7 +127,7 @@ class LogEvent{
             buffer->push(reinterpret_cast<const char*>(&meta), sizeof(meta));
 
             // 序列化变长数据（包含终止符）
-            buffer->push(m_file, meta.fileLen);
+            buffer->push(m_file.c_str(), meta.fileLen);
             buffer->push(m_threadName.c_str(), meta.threadNameLen);
             buffer->push(m_ss.str().c_str(), meta.msgLen);
 
@@ -150,7 +150,7 @@ class LogEvent{
             // 4. 提取各字段数据（使用临时指针操作）
             const char* data_ptr = buffer.Begin() + sizeof(LogMeta);
             
-            // 文件名处理（需保证C字符串终止）
+            // 文件名处理
             std::string file(data_ptr, meta.fileLen);
             data_ptr += meta.fileLen;
 
@@ -166,11 +166,11 @@ class LogEvent{
 
             // 6. 构建日志事件对象
             auto event = std::make_shared<LogEvent>(
-                file.c_str(),
+                std::move(file),
                 meta.line,
                 meta.elapse,
                 meta.threadId,
-                thread_name,
+                std::move(thread_name),
                 meta.fiberId,
                 meta.timestamp,
                 meta.level
@@ -182,7 +182,7 @@ class LogEvent{
         }
 
     private:
-        const char* m_file = nullptr;   //文件名
+        std::string m_file;   //文件名
         int32_t m_line = 0;             //行号
         uint32_t m_elapse = 0;          //程序启动到现在的毫秒数
         uint32_t m_threadId = 0;        //线程
@@ -256,6 +256,9 @@ class LogAppender{
         virtual ~LogAppender(){}
         //纯虚函数
         virtual void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) = 0;
+        //适用于 双缓冲区，批量输入
+        virtual void log(std::shared_ptr<Logger> logger, std::vector<LogEvent::ptr> events) = 0;     
+
         virtual std::string toYamlString() = 0;
         void setLevel(LogLevel::Level level){m_level = level;}
         void setFormatter(LogFormatter::ptr val);
@@ -267,6 +270,20 @@ class LogAppender{
         MutexType m_mutex;
 };
 
+class AppenderType{
+public:
+    enum Type{
+        UNKNOW,
+        StdoutLogAppender,          // std输出
+        FileLogAppender,            // 不断输入到单一文件，不考虑文件大小
+        RotatingFileLogAppender,    // 当文件大小达到阈值，创建新文件
+    };
+
+    static const char* ToString(AppenderType::Type type);     // 枚举转字符表示
+    static AppenderType::Type FromString(const std::string& str);    // 字符串转枚举表达
+
+};
+
 //输出到控制台
 class StdoutLogAppender : public LogAppender{
 public:
@@ -274,27 +291,87 @@ public:
     StdoutLogAppender(LogLevel::Level level, LogFormatter::ptr formatter);
     std::string toYamlString();
     void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) override;
+    void log(std::shared_ptr<Logger> logger, std::vector<LogEvent::ptr> events) override;     
 private:
+    Buffer m_buffer;
 };
 
-//输出到文件
+class FlushRule{
+public:
+    enum Rule{
+        UNKNOW,
+        FFLUSH,             // 普通日志场景，允许少量日志丢失但要求高性能
+        FSYNC               // 适用于财务交易、关键操作日志等不能容忍数据丢失的场景
+    };
+    static const char* ToString(FlushRule::Rule rule);     // 枚举转字符表示
+    static FlushRule::Rule FromString(const std::string& str);    // 字符串转枚举表达
+};
+
+
 class FileLogAppender : public LogAppender{
 public:
     typedef std::shared_ptr<FileLogAppender> ptr;
-    FileLogAppender(const std::string& filename, LogLevel::Level level, LogFormatter::ptr formatter);
+    FileLogAppender(const std::string& filename, 
+        LogLevel::Level level, 
+        LogFormatter::ptr formatter,
+        FlushRule::Rule flush_rule = FlushRule::Rule::FFLUSH    // 默认是普通日志
+    );
+    ~FileLogAppender(){
+        if(m_fs){
+            fclose(m_fs);
+            m_fs = NULL;
+        }
+    }
     std::string toYamlString();
     void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) override;
-    
-    // 重新打开文件
-    // 如果 当前的日志事件 比 上一个日志事件 超过 interval 秒，就重新打开一次日志文件。把缓存写入。也避免线程间频繁开关 文件。
-    // 当 interval = 0时，直接重新打开文件。
-    bool reopen(uint64_t now, uint64_t interval = 3);
+    void log(std::shared_ptr<Logger> logger, std::vector<LogEvent::ptr> events) override;     
+
 private:
     std::string m_filename;
-    std::ofstream m_filestream;     //#include <fstream>
-    bool m_reopenError; 
-    uint64_t m_lastTime;              // 文件最近一次打开的事件 事件
+    FILE* m_fs = NULL;
+    FlushRule::Rule m_flushRule;
 };
+
+class RotatingFileLogAppender : public LogAppender{
+public:
+    typedef std::shared_ptr<RotatingFileLogAppender> ptr;
+    RotatingFileLogAppender(const std::string& filename, 
+        LogLevel::Level level, 
+        LogFormatter::ptr formatter,
+        size_t max_size,
+        size_t max_file = 0,  // 默认是无限增加
+        FlushRule::Rule flush_rule = FlushRule::Rule::FFLUSH  // 默认是普通日志 
+    );
+    ~RotatingFileLogAppender(){
+        if(m_curFile){
+            fclose(m_curFile);
+            m_curFile = NULL;
+        }
+    }
+    std::string toYamlString();
+    void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) override;
+    void log(std::shared_ptr<Logger> logger, std::vector<LogEvent::ptr> events) override;     
+
+private:
+    void initLogFile(size_t len = 0);
+    /**
+     * 判断是否写的下，如果写的下就 ss<<str，缓存
+     * 如果写不写了，就把 ss 缓存一次性写入。重置ss 
+     */
+    bool checkLogFile(const std::string& str);
+    std::string createFilename();
+private:
+    std::string m_filename;
+    FILE* m_curFile;
+    std::vector<std::string> m_fileNames;
+    size_t m_maxSize;
+    size_t m_maxFile;
+    FlushRule::Rule m_flushRule;
+    size_t m_curFilePos = 0;
+    size_t m_curFileIndex = 0;
+    Buffer m_buffer; 
+};
+
 
 //日志器
 //继承 public std::enable_shared_from_this<Logger> 可以在成员函数获得自己的shard_ptr、
@@ -323,21 +400,21 @@ class Logger : public std::enable_shared_from_this<Logger>{
         }
 
         // 由 iom_log 写入真正的文件。
-        void realLog(Buffer::ptr buffer) { // 1. 修改参数类型为 Buffer::ptr
-            if (!buffer) { // 2. 空指针检查
+        void realLog(Buffer::ptr buffer) {
+            MutexType::Lock lock(m_log_mutex);      // 强制 只能 一个线程写入。
+
+            if (!buffer) {
                 std::cerr << "realLog: invalid buffer pointer" << std::endl;
                 return;
             }
-
-            while (true) {
+            
+            std::vector<LogEvent::ptr> events;
+            while (true) {  // 解析 buffer
                 LogEvent::ptr event = LogEvent::deserialize(*buffer);
                 // 理论上 buffer 里是多个Event的数据，不存在处理失败。
-
+                
                 if (event) {
-                    auto self = shared_from_this();
-                    for (auto& appender : m_appenders) {
-                        appender->log(self, event);
-                    }
+                    events.push_back(event);
                 } else {
                     if (buffer->readableSize() == 0) { // 读完了
                         break;
@@ -348,6 +425,10 @@ class Logger : public std::enable_shared_from_this<Logger>{
                     }
                 }
             }
+            auto self = shared_from_this();
+            for (auto& appender : m_appenders) {
+                appender->log(self, events);
+            }
         }
  
         // 写入缓冲区
@@ -355,6 +436,7 @@ class Logger : public std::enable_shared_from_this<Logger>{
         void log(LogEvent::ptr event){
             if(event->getLevel() >= m_level){
                 if(m_bufMgr != nullptr){
+                    // MutexType::Lock lock(m_mutex);   当协程阻塞，这个锁就一直没释放。搞半天，给我整的怀疑人生了。
                     Buffer::ptr buf = event->serialize();
                     m_bufMgr->push(buf);
                 }else{
@@ -381,6 +463,7 @@ class Logger : public std::enable_shared_from_this<Logger>{
         LogLevel::Level m_level;                    //日志级别，当事件的日志级别大于等于该日志器的级别时，才输出
         std::vector<LogAppender::ptr> m_appenders;  //Appender集合
         MutexType m_mutex;
+        MutexType m_log_mutex;
         BufferManager::ptr m_bufMgr;                // 双缓冲区（所有logger公用一个BufferManager双缓冲区）
 };
 

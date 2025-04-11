@@ -105,8 +105,7 @@ protected:
       * @brief 通知协程调度器有任务了
       */
     void tickle();
-    
-    void tickle(const std::string& reason);
+
 
     /**
      * 是否可以停止

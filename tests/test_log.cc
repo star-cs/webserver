@@ -37,20 +37,24 @@ void test(){
 }
 #endif
 
+static int count = 0;
+
 void test(){
-    auto network_iom = sylar::WorkerMgr::GetInstance()->get("net").get();
 
     auto logger1 = SYLAR_LOG_NAME("root");
-    auto logger2 = SYLAR_LOG_NAME("system");
-    
-    int count = 0;
+    // auto logger2 = SYLAR_LOG_NAME("system");
+
+    // std::cout << sylar::LoggerMgr::GetInstance()->toYamlString() << std::endl;
+    // sylar::WorkerGroup::ptr workG = sylar::WorkerGroup::Create(10, sylar::WorkerMgr::GetInstance()->get("net").get());
     for(int i = 0; i < 10000; i++){
-        network_iom->schedule([logger1, logger2, &count](){
+        // workG->schedule([logger1](){
+        //     SYLAR_LOG_INFO(logger1) << "Log to file1: " << count++;
+        // });
+        sylar::WorkerMgr::GetInstance()->schedule("net", [logger1](){
             SYLAR_LOG_INFO(logger1) << "Log to file1: " << count++;
-            SYLAR_LOG_ERROR(logger2) << "Log to file2: " << count++;
         });
+        sleep(1);
     }
-    sylar::WorkerMgr::GetInstance()->stop();
 }
 
 
@@ -58,6 +62,7 @@ int main(){
     std::cout << "main start" << std::endl;
     
     // 问题：代码里存在 static g_logger这种，它会默认创建BufferManager，但是这个时候线程池还没创建完。
+    // static g_logger 默认创建的都是不带双缓冲区的日志器
     YAML::Node workNode = YAML::LoadFile("/home/yang/projects/webserver/bin/conf/works.yml");
     sylar::Config::LoadFromYaml(workNode);
 
@@ -70,7 +75,7 @@ int main(){
     sylar::IOManager::ptr m_mainIOmanager;
     m_mainIOmanager.reset(new sylar::IOManager(1, true, "main"));
     m_mainIOmanager->schedule(&test);
-
+    m_mainIOmanager->addTimer(1000, [](){}, true);      // 保证 主线程不退出
     m_mainIOmanager->stop();    // 这个就会一直等待任务结束，任务里的
     std::cout << "main end" << std::endl;
     return 0;   

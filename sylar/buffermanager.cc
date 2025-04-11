@@ -9,6 +9,8 @@
 #include <iostream>
 namespace sylar {
 
+static Logger::ptr g_logger = SYLAR_LOG_NAME("system");
+
 /******************************** Buffer 实现 ********************************/
 Buffer::Buffer(size_t buffer_size) 
     : m_buffer_size(buffer_size),
@@ -25,21 +27,28 @@ Buffer::Buffer(size_t buffer_size, size_t threshold, size_t linear_growth)
 }
 
 void Buffer::push(const char* data, size_t len) {
+    MutexType::Lock lock(m_mutex);
     ToBeEnough(len);
     std::copy(data, data + len, &m_buffer[m_write_pos]);
     m_write_pos += len;
 }
+
+void Buffer::push(const std::string& str){
+    push(str.c_str(), str.size());
+}
+
 
 char* Buffer::readBegin(int len) {
     assert(static_cast<size_t>(len) < readableSize());
     return &m_buffer[m_read_pos];
 }
 
-bool Buffer::isEmpty() { 
+bool Buffer::isEmpty() {
     return m_write_pos == m_read_pos; 
 }
 
 void Buffer::swap(Buffer& buf) {
+    MutexType::Lock lock(m_mutex);
     m_buffer.swap(buf.m_buffer);
     std::swap(m_read_pos, buf.m_read_pos);
     std::swap(m_write_pos, buf.m_write_pos);
@@ -58,16 +67,19 @@ const char* Buffer::Begin() const {
 }
 
 void Buffer::moveWritePos(int len) {
+    MutexType::Lock lock(m_mutex);
     assert(static_cast<size_t>(len) <= writeableSize());
     m_write_pos += len;
 }
 
 void Buffer::moveReadPos(int len) {
+    MutexType::Lock lock(m_mutex);
     assert(static_cast<size_t>(len) <= readableSize());
     m_read_pos += len;
 }
 
 void Buffer::Reset() {
+    MutexType::Lock lock(m_mutex);
     m_write_pos = 0;
     m_read_pos = 0;
 }
@@ -90,25 +102,20 @@ BufferManager::BufferManager(const functor& cb,
                             size_t buffer_size,
                             size_t threshold,
                             size_t linear_growth,
-                            size_t swap_threshold,
                             size_t swap_time,
                             IOManager* iom)
     :   m_stop(false),
-        m_sem_producer(0),
-        m_sem_consumer(0),
+        m_swap_status(false),
         m_asyncType(asyncType),
         m_buffer_productor(std::make_shared<Buffer>(buffer_size, threshold, linear_growth)),
         m_buffer_consumer(std::make_shared<Buffer>(buffer_size, threshold, linear_growth)),
         m_callback(cb),
-        m_swap_threshold(swap_threshold),
         m_swap_time(swap_time)
 {
     assert(iom != nullptr);
 
-    assert(m_swap_threshold > 0);
-    iom->schedule(std::bind(&BufferManager::swap_pop, this));
-
-    m_timer = iom->addTimer(m_swap_time, std::bind(&BufferManager::swap_pop_one, this), true);
+    iom->schedule(std::bind(&BufferManager::ThreadEntry, this));
+    m_timer = iom->addTimer(m_swap_time, std::bind(&BufferManager::TimerThreadEntry, this), true);
 }
 
 BufferManager::BufferManager(const functor& cb, const BufferParams& bufferParams)
@@ -118,50 +125,41 @@ BufferManager::BufferManager(const functor& cb, const BufferParams& bufferParams
         bufferParams.size,
         bufferParams.threshold,
         bufferParams.linear_growth,
-        bufferParams.swap_threshold,
         bufferParams.swap_time,
         bufferParams.iom)
 {
 }
 
 BufferManager::~BufferManager() {
+    SYLAR_LOG_DEBUG(g_logger) << "BufferManager destructor called.";
     stop();
 }
 
 void BufferManager::stop() { 
-    m_timer->cancel();      // 删除定时器
-    m_stop = true;          // 设置停止标志，生产者 禁止写入，消费者 直接 任务 完毕。
-    m_sem_consumer.notify();// 唤醒退出 任务。
-    swap_pop_one();         // 获取到 生产者 缓存里 的 残余数据。（主线程来清理）
+    m_timer->cancel();              // 删除定时器
+    m_stop = true;          
+    m_cond_consumer.notify_one();   // 唤醒，m_stop=true 满足条件
 }
 
 void BufferManager::push(const char* data, size_t len) {
     MutexType::Lock lock(m_mutex);
-    
-    while (true) {
-        // 检查停止标志（最高优先级）
-        if (m_stop) {
-            return;
-        }
 
-        // 检查缓冲区空间是否足够
-        if (len <= m_buffer_productor->writeableSize() || m_asyncType != AsyncType::ASYNC_SAFE) {
-            break; // 空间足够或非安全模式，直接写入
+    if(m_asyncType == AsyncType::ASYNC_SAFE){
+        if (len > m_buffer_productor->writeableSize()) {
+            SYLAR_LOG_DEBUG(g_logger) << "notify consumer";
+            m_cond_consumer.notify_one();
         }
-
-        // 异步安全模式下空间不足，触发消费者处理
-        m_sem_consumer.notify();  // 通知消费者交换缓冲区
+        m_cond_producer.wait(lock, [&](){
+            return (m_stop || (len <= m_buffer_productor->writeableSize()));
+        });
+    }
         
-        // 释放锁并等待生产者信号量（消费者处理后会触发）
-        lock.unlock();
-        m_sem_producer.wait();    // 等待缓冲区释放
-        lock.lock();
+    if(m_stop){
+        throw std::runtime_error("BufferManager is stopped");
     }
+    m_buffer_productor->push(data, len);
+    SYLAR_LOG_DEBUG(g_logger) << "m_buffer_productor writeableSize: " << m_buffer_productor->writeableSize();
 
-    // 写入数据（确保未停止）
-    if (!m_stop) {
-        m_buffer_productor->push(data, len);
-    }
 }
 
 
@@ -171,48 +169,48 @@ void BufferManager::push(Buffer::ptr buffer) {
 
 // 使用Timer，按照频率访问缓冲区
 // 如果生产者没有就退出
-void BufferManager::swap_pop_one(){
+void BufferManager::TimerThreadEntry(){
     {
         MutexType::Lock lock(m_mutex);
-        if (!m_buffer_productor->isEmpty() && m_buffer_consumer->isEmpty() && !m_stop) {
+
+        if ((!m_buffer_productor->isEmpty() && m_buffer_consumer->isEmpty()) || m_stop) {
             swap_buffers();
-            m_sem_producer.notify();
+        
+            if(m_asyncType == AsyncType::ASYNC_SAFE){
+                m_cond_producer.notify_all();
+            }
         }else{
             return;
         }
     }
-    try{
+    {
+        MutexType::Lock lock(m_swap_mutex);
         m_callback(m_buffer_consumer);
-    }catch(...){
-        std::cerr << "BufferManager::swap_pop_timer() exception" << std::endl;
+        m_buffer_consumer->Reset();
     }
-    m_buffer_consumer->Reset();
 }
 
-void BufferManager::swap_pop() {
+void BufferManager::ThreadEntry() {
     while(true){
         {
             MutexType::Lock lock(m_mutex);
-            if (m_stop) {
-                return; // 退出线程
-            }
-            if (!m_buffer_productor->isEmpty() && m_buffer_consumer->isEmpty()
-                && m_swap_threshold >= m_buffer_productor->writeableSize() && !m_stop) {
-                swap_buffers();
-                m_sem_producer.notify();
-            }else{
-                lock.unlock();
-                m_sem_consumer.wait();
-                lock.lock();
-                continue;
+            SYLAR_LOG_DEBUG(g_logger) << "ThreadEntry started.";
+            m_cond_consumer.wait(lock, [&](){
+                return m_stop || (!m_buffer_productor->isEmpty() && m_buffer_consumer->isEmpty());
+            });
+
+            swap_buffers();
+
+            if(m_asyncType == AsyncType::ASYNC_SAFE){
+                m_cond_consumer.notify_all();
             }
         }
-        try{
+        {
+            MutexType::Lock lock(m_swap_mutex);
             m_callback(m_buffer_consumer);
-        }catch(...){
-            std::cerr << "BufferManager::swap_pop() exception" << std::endl;
+            m_buffer_consumer->Reset();
+            if(m_stop && m_buffer_productor->isEmpty()) return;
         }
-        m_buffer_consumer->Reset();
     }
 }
 

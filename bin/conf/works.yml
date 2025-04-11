@@ -1,8 +1,8 @@
 workers:
     io:
-      thread_num: 3
-      worker_num: 2
+      thread_num: 1
+      worker_num: 1
     net:
-      thread_num: 5
+      thread_num: 1
       worker_num: 1
 

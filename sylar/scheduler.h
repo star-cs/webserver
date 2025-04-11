@@ -17,8 +17,10 @@
  #include "thread.h"
  #include <iostream>
 
+
+
  namespace sylar {
- 
+     
  /**
   * @brief 协程调度器
   * @details 封装的是N-M的协程调度器
@@ -73,6 +75,7 @@
      template <class FiberOrCb>
      void schedule(FiberOrCb fc, int thread = -1) {
          if(stopping()){        // 如果关闭，那么不能添加任务了。（子线程也能添加）
+            std::cout << __FILE__ << ":" << __LINE__ << " Attempt to add task to a stopping scheduler, task ignored." << std::endl;
             return;
          }
          bool need_tickle = false;
@@ -82,7 +85,7 @@
          }
 
          if (need_tickle) {
-            tickle("schedule() add new tasks"); // 唤醒idle协程
+            tickle(); // 唤醒idle协程
          }
      }
  
@@ -114,8 +117,6 @@
       * @brief 通知协程调度器有任务了
       */
      virtual void tickle();
-
-     virtual void tickle(const std::string& reason);
  
      /**
       * @brief 协程调度函数
