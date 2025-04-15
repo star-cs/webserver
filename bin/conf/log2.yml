@@ -1,0 +1,7 @@
+logs:
+    - name: system
+      level: debug
+      appenders:
+          - type: StdoutLogAppender # 这里用的就是默认的 
+          - type: FileLogAppender   
+            file: /home/yang/projects/webserver/tests_log/test.txt

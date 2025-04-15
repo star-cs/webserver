@@ -13,6 +13,15 @@ class Singleton{
 };
 
 template<class T, class X = void, int N = 0>
+class ThreadLocalSingleton{
+    public:
+        static T* GetInstance(){
+            static thread_local T v;
+            return &v;
+        }
+};
+
+template<class T, class X = void, int N = 0>
 class SingletonPtr{
     public: 
         static std::shared_ptr<T> GetInstance(){

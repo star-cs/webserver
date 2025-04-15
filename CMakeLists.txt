@@ -15,12 +15,13 @@ set(LIB_SRC
     sylar/config.cc
     sylar/config_init.cc
     sylar/fd_manager.cc 
+    sylar/mutex.cc
+    sylar/memorypool.cc
     sylar/fiber.cc
     sylar/hook.cc
     sylar/iomanager.cc
     sylar/buffermanager.cc
     sylar/log.cc
-    sylar/mutex.cc
     sylar/scheduler.cc
     sylar/timermanager.cc
     sylar/thread.cc
@@ -47,6 +48,7 @@ sylar_add_executable(test_scheduler "tests/test_scheduler.cc" sylar "${LIBS}")
 sylar_add_executable(test_iomanager "tests/test_iomanager.cc" sylar "${LIBS}")
 sylar_add_executable(test_timer "tests/test_timermanager.cc" sylar "${LIBS}")
 sylar_add_executable(test_hook "tests/test_hook.cc" sylar "${LIBS}")
+sylar_add_executable(test_memorypool "tests/test_memorypool.cc" sylar "${LIBS}")
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)

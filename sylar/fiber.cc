@@ -5,6 +5,7 @@
 #include "config.h"
 #include "macro.h"
 #include "scheduler.h"
+#include "memorypool.h"
 
 namespace sylar
 {
@@ -20,14 +21,6 @@ static thread_local Fiber* t_fiber = nullptr;
 static thread_local Fiber::ptr t_thread_fiber = nullptr;
 
 static ConfigVar<uint32_t>::ptr g_fiber_stack_size = Config::Lookup<uint32_t>("fiber.stack_size", 128 * 1024, "fiber stack size");
-
-class MallocStackAllocator{
-public:
-    static void *Alloc(size_t size){return malloc(size);}
-    static void Dealloc(void* vp, size_t size){return free(vp);}
-};
-
-using StackAllocator = MallocStackAllocator;
 
 // 主协程
 Fiber::Fiber(){
@@ -45,7 +38,7 @@ Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool run_in_scheduler):
     ++s_fiber_count;
     m_stacksize = stacksize ? stacksize : g_fiber_stack_size->getValue();
 
-    m_stack = StackAllocator::Alloc(m_stacksize);
+    m_stack = threadCache::GetInstance()->allocate(m_stacksize);
     
     if(getcontext(&m_ctx)){
         SYLAR_ASSERT2(false, "getContext");
@@ -65,7 +58,7 @@ Fiber::~Fiber(){
     --s_fiber_count;
     if(m_stack){    // 如果有协程栈地址，那么就是子协程。
         SYLAR_ASSERT(m_state == TERM);
-        StackAllocator::Dealloc(m_stack, m_stacksize);
+        threadCache::GetInstance()->deallocate(m_stack, m_stacksize);
         SYLAR_LOG_DEBUG(g_logger) << "dealloc stack, id = " << m_id;
 
     } else {
