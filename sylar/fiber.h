@@ -3,8 +3,51 @@
 #include <functional>
 #include <memory>
 #include <ucontext.h>
+#include <cstring>
 
 namespace sylar {
+
+
+extern "C"
+{
+    
+typedef void* fcontext_t;
+typedef void (*fn_t)(intptr_t);
+    
+intptr_t libgo_jump_fcontext(fcontext_t * ofc, fcontext_t nfc,
+            intptr_t vp, bool preserve_fpu = false);
+    
+fcontext_t libgo_make_fcontext(void* stack, std::size_t size, fn_t fn);
+    
+} // extern "C
+
+
+class Context{
+public:
+    Context() = default;
+
+    Context(fn_t fn, intptr_t vp, std::size_t stackSize);
+    
+    ~Context();
+
+    bool hasStack(){
+        return stack_ != nullptr;
+    }
+
+    void SwapTo(Context & other)
+    {
+        libgo_jump_fcontext(&ctx_, other.ctx_, other.vp_);
+    }
+
+private:
+    fcontext_t ctx_;
+    fn_t fn_;
+    intptr_t vp_;
+    char* stack_ = nullptr;
+    uint32_t stackSize_ = 0;
+    int protectPage_ = 0;
+};
+
 /**
  * @brief 协程类
  * 
@@ -91,7 +134,7 @@ public:
     /**
      * @brief 协程入口函数
      */
-    static void MainFunc();
+    static void MainFunc(intptr_t vp);
     /**
      * @brief 获取当前协程id
      */
@@ -99,14 +142,10 @@ public:
 private:
     /// 协程id
     uint64_t m_id        = 0;
-    /// 协程栈大小
-    uint32_t m_stacksize = 0;
     /// 协程状态
     State m_state        = READY;
     /// 协程上下文
-    ucontext_t m_ctx;
-    /// 协程栈地址
-    void *m_stack = nullptr;
+    Context m_ctx;
     /// 协程入口函数
     std::function<void()> m_cb;
     /// 本协程是否参与调度器调度，相当于当前协程，是任务协程。

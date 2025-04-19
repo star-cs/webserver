@@ -510,7 +510,7 @@ void RotatingFileLogAppender::initLogFile(size_t len){
                         perror("rename failed");
                     }   
                     m_fileNames[m_curFileIndex] = newfilename;
-                    m_curFile = fopen(newfilename.c_str(), "ab");
+                    m_curFile = fopen(newfilename.c_str(), "r+b");
                     fseek(m_curFile, 0, SEEK_SET);   // 从头 覆盖，不考虑 日志文件名了。默认最后一个文件可能会存在过往的日志信息。
                     m_curFilePos = 0;
                     return;
@@ -563,6 +563,7 @@ void RotatingFileLogAppender::log(std::shared_ptr<Logger> logger, LogEvent::ptr 
 }
 
 bool RotatingFileLogAppender::checkLogFile(const std::string& data){
+
     if(m_curFile == NULL || (m_curFilePos + data.size()) > m_maxSize){
         // 写不下了，保证日志的完整性，直接新建文件。
         if(m_curFile != NULL){
@@ -586,7 +587,6 @@ bool RotatingFileLogAppender::checkLogFile(const std::string& data){
             }
             
             fclose(m_curFile);
-            
             
             if(m_maxFile == 0){
                 // 无限增加日志文件
@@ -619,7 +619,8 @@ bool RotatingFileLogAppender::checkLogFile(const std::string& data){
                 }
             }
         }
-        // 创建新文件
+        
+        // m_curFile为空，创建新文件 
         std::string filename = createFilename();
         if(m_maxFile > 0){
             m_fileNames[m_curFileIndex] = filename;    // 只有限制最大文件数，记录文件名
@@ -647,6 +648,7 @@ void RotatingFileLogAppender::log(std::shared_ptr<Logger> logger, std::vector<Lo
             checkLogFile(data);
         }
     }
+
     // 最后再次，把缓存里的写入
     if(m_buffer.readableSize() > 0 && m_curFile != NULL){
         fwrite(m_buffer.Begin(), 1, m_buffer.readableSize(), m_curFile);

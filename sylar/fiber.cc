@@ -16,38 +16,45 @@ static std::atomic<uint64_t> s_fiber_id{0};
 static std::atomic<uint64_t> s_fiber_count{0};
 
 // 当前正在运行的协程，会不停修改的~
-static thread_local Fiber* t_fiber = nullptr;
+static thread_local Fiber* t_fiber{nullptr};
 // 线程局部变量，当前线程的主协程，切换到这个协程，就相当于切换到了主线程中运行，智能指针形式
-static thread_local Fiber::ptr t_thread_fiber = nullptr;
+static thread_local Fiber::ptr t_thread_fiber{nullptr};
 
 static ConfigVar<uint32_t>::ptr g_fiber_stack_size = Config::Lookup<uint32_t>("fiber.stack_size", 128 * 1024, "fiber stack size");
+
+// 上下文
+Context::Context(fn_t fn, intptr_t vp, std::size_t stackSize)
+    : fn_(fn), vp_(vp), stackSize_(stackSize){
+    stackSize_ = stackSize_ ? stackSize_ : g_fiber_stack_size->getValue();
+    stack_ = (char*)threadCache::GetInstance()->allocate(stackSize_);
+    
+    ctx_ = libgo_make_fcontext(stack_ + stackSize_, stackSize_, fn_);
+}
+
+Context::~Context(){
+    if (stack_) {
+        threadCache::GetInstance()->deallocate(stack_, stackSize_);
+        stack_ = NULL;
+    }
+}
 
 // 主协程
 Fiber::Fiber(){
     m_state = RUNNING;
     SetThis(this);
-    if(getcontext(&m_ctx)){
-        SYLAR_ASSERT2(false, "getcontext");
-    }
     ++s_fiber_count;
     m_id = s_fiber_id++;        // 协程id从0开始。
     SYLAR_LOG_DEBUG(g_logger) << "Fiber::Fiber() main id = " << m_id;
 }
 
-Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool run_in_scheduler): m_id(s_fiber_id++), m_cb(cb), m_runInScheduler(run_in_scheduler) {
+Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool run_in_scheduler): 
+    m_id(s_fiber_id++), 
+    m_ctx(&Fiber::MainFunc, (intptr_t)(this), stacksize),
+    m_cb(cb), 
+    m_runInScheduler(run_in_scheduler)
+{
+
     ++s_fiber_count;
-    m_stacksize = stacksize ? stacksize : g_fiber_stack_size->getValue();
-
-    m_stack = threadCache::GetInstance()->allocate(m_stacksize);
-    
-    if(getcontext(&m_ctx)){
-        SYLAR_ASSERT2(false, "getContext");
-    }
-    m_ctx.uc_link = nullptr;                // 下一次指向的上下文 任务~
-    m_ctx.uc_stack.ss_sp = m_stack;
-    m_ctx.uc_stack.ss_size = m_stacksize;
-
-    makecontext(&m_ctx, &Fiber::MainFunc, 0);
 
     SYLAR_LOG_DEBUG(g_logger) << "Fiber::Fiber() id = " << m_id;
 }
@@ -56,11 +63,10 @@ Fiber::~Fiber(){
     SYLAR_LOG_DEBUG(g_logger) << "Fiber::~Fiber() id = " << m_id;
 
     --s_fiber_count;
-    if(m_stack){    // 如果有协程栈地址，那么就是子协程。
+    if(m_ctx.hasStack()){    // 如果有协程栈地址，那么就是子协程。
         SYLAR_ASSERT(m_state == TERM);
-        threadCache::GetInstance()->deallocate(m_stack, m_stacksize);
-        SYLAR_LOG_DEBUG(g_logger) << "dealloc stack, id = " << m_id;
-
+        
+        // SYLAR_LOG_DEBUG(g_logger) << "dealloc stack, id = " << m_id;
     } else {
         // 主协程
         SYLAR_ASSERT(!m_cb);        // 主协程没有目标函数 cb
@@ -75,21 +81,10 @@ Fiber::~Fiber(){
 
 
 void Fiber::reset(std::function<void()> cb){
-    SYLAR_ASSERT(m_stack);
+    SYLAR_ASSERT(m_ctx.hasStack());
     SYLAR_ASSERT(m_state == TERM);
 
-    m_cb = cb;
-
-    if(getcontext(&m_ctx)){
-        SYLAR_ASSERT2(false, "getcontext");
-    }
-
-    m_ctx.uc_link = nullptr;
-    m_ctx.uc_stack.ss_sp = m_stack;
-    m_ctx.uc_stack.ss_size = m_stacksize;
-
-    makecontext(&m_ctx, &Fiber::MainFunc, 0);
-    
+    m_cb = cb;    
     m_state = READY;
 }
 
@@ -103,13 +98,10 @@ void Fiber::resume(){
     SetThis(this);
     m_state = RUNNING;
     if(m_runInScheduler){   // 相当于当前协程，是任务协程。 t_scheduler_fiber --> t_fiber
-        if(swapcontext(&(Scheduler::GetMainFiber()->m_ctx) , &m_ctx)){
-            SYLAR_ASSERT2(false, "swapcontext");
-        }
+        Scheduler::GetMainFiber()->m_ctx.SwapTo(m_ctx);
+
     }else{      // t_thread_fiber --> t_scheduler_fiber
-        if(swapcontext(&(t_thread_fiber->m_ctx), &m_ctx)){
-            SYLAR_ASSERT2(false, "swapcontext");
-        }
+        t_thread_fiber->m_ctx.SwapTo(m_ctx);
     }
 }
 
@@ -126,14 +118,12 @@ void Fiber::yield(){
 
     if(m_runInScheduler){   // 同 resume()   t_fiber --> t_scheduler_fiber
         SetThis(Scheduler::GetMainFiber());
-        if(swapcontext(&m_ctx, &(Scheduler::GetMainFiber()->m_ctx))){
-            SYLAR_ASSERT2(false, "swapcontext");
-        }
+        m_ctx.SwapTo(Scheduler::GetMainFiber()->m_ctx);
+
     }else {     // t_scheduler_fiber --> t_thread_fiber
         SetThis(t_thread_fiber.get());                          // 这个是 在swapcontext前确定好？？保证上下文切换后t_fiber指针立即指向目标协程（主协程）
-        if(swapcontext(&m_ctx, &(t_thread_fiber->m_ctx))){
-            SYLAR_ASSERT2(false, "swapcontext");
-        }
+
+        m_ctx.SwapTo(t_thread_fiber->m_ctx);
     }
 }
 
@@ -159,22 +149,19 @@ uint64_t Fiber::TotalFibers(){
     return s_fiber_count;
 }
 
-void Fiber::MainFunc(){
-    Fiber::ptr cur = GetThis();     // 这里会获取到当前运行协程的 智能指针，其引用+1
+void Fiber::MainFunc(intptr_t vp){
+    Fiber* cur = (Fiber*)(vp);
     SYLAR_ASSERT(cur);
     try{
         cur->m_cb();
         cur->m_cb = nullptr;
         cur->m_state = State::TERM;
-    } catch(std::exception e){
+    } catch(std::exception& e){
         SYLAR_LOG_ERROR(g_logger) << "Fiber::MainFunc() error " << e.what();
     } catch(...){
         SYLAR_LOG_ERROR(g_logger) << "Fiber Excpet ";
     }
-    
-    auto raw_ptr = cur.get();      // 获取原始指针避免智能指针的引用计数干扰
-    cur.reset();                   // 解除当前上下文对协程对象的所有权
-    raw_ptr->yield();
+    cur->yield();
 }
 
 uint64_t Fiber::GetFiberId(){

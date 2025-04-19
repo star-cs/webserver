@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include "log.h"
 #include "fiber.h"
+#include <signal.h>
 
 static sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 

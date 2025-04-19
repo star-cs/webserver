@@ -3,8 +3,24 @@ project(sylar)
 
 include (cmake/utils.cmake)
 
-set(CMAKE_VERBOSE_MAKEFILE ON)
-set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} -rdynamic -O0 -ggdb -std=c++11 -Wall -Wno-builtin-macro-redefined -Wno-deprecated -Werror -Wno-unused-function")
+set(CMAKE_VERBOSE_MAKEFILE OFF)
+# 全局编译选项配置
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# 公共编译选项
+add_compile_options(
+    -rdynamic
+    -O0                     # O0 debug（开发），O2 release（编译会慢很多）
+    -ggdb
+    -Wall
+    -Wno-builtin-macro-redefined
+    -Wno-deprecated
+    -Werror
+    -Wno-unused-function
+)
+enable_language(ASM)
 
 # 头文件
 include_directories(.)
@@ -27,16 +43,18 @@ set(LIB_SRC
     sylar/thread.cc
     sylar/util.cc
     sylar/worker.cc
+    fcontext_asm/jump_x86_64_sysv_elf_gas.S
+    fcontext_asm/make_x86_64_sysv_elf_gas.S
     )
 
 add_library(sylar SHARED ${LIB_SRC})
 force_redefine_file_macro_for_sources(sylar)
 
 set(LIBS
-    dl
     sylar
     yaml-cpp
     pthread
+    dl
 )
 
 sylar_add_executable(test_log "tests/test_log.cc" sylar "${LIBS}")

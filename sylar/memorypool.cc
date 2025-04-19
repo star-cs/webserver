@@ -24,7 +24,6 @@ ThreadCache::~ThreadCache(){
             freeListSize_[i] = 0;
         }
     }
-    printf("~ThreadCache()");
 }
 
 void* ThreadCache::allocate(size_t size){

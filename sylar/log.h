@@ -362,7 +362,7 @@ private:
     std::string createFilename();
 private:
     std::string m_filename;
-    FILE* m_curFile;
+    FILE* m_curFile = NULL;
     std::vector<std::string> m_fileNames;
     size_t m_maxSize;
     size_t m_maxFile;
