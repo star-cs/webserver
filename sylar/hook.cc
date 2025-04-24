@@ -116,6 +116,7 @@ static ssize_t do_io(int fd,
     }
     
     // 不是socket 或者是 用户设定了非阻塞
+    // 用户设定了非阻塞，意味着自行处理非阻塞逻辑
     if(!ctx->isSocket() || ctx->getUserNonblock()){
         return fun(fd, std::forward<Args>(args)...);
     }
@@ -127,6 +128,7 @@ static ssize_t do_io(int fd,
 retry:
     SYLAR_LOG_DEBUG(g_logger) << hook_fun_name << " event " << event;
     ssize_t n = fun(fd, std::forward<Args>(args)...);
+    // SYLAR_LOG_DEBUG(g_logger) << "test " << n;
     while(n == -1 && errno == EINTR){    // 系统调用被信号中断
         n = fun(fd, std::forward<Args>(args)...);
     }
@@ -339,6 +341,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen){
 
 int accept(int s, struct sockaddr *addr, socklen_t *addrlen){
     int fd = do_io(s, accept_f, "accept", sylar::IOManager::Event::READ, SO_RCVTIMEO, addr, addrlen);
+
     if(fd != -1){
         sylar::FdMgr::GetInstance()->get(fd, true);
     }

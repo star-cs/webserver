@@ -401,7 +401,7 @@ void IOManager::idle(){
             }else{
                 next_timeout = MAX_TIMEOUT;
             }
-            SYLAR_LOG_DEBUG(g_logger) << "epoll_wait with timeout=" << next_timeout;
+            //SYLAR_LOG_DEBUG(g_logger) << "epoll_wait with timeout=" << next_timeout;
             rt = epoll_wait(m_epfd, events, MAX_EVENTS, (int)next_timeout);
 
             if(rt < 0){
@@ -500,7 +500,7 @@ void IOManager::idle(){
         // cur.reset();
 
         // raw_ptr->yield();
-        SYLAR_LOG_DEBUG(g_logger) << "Yielding idle fiber";
+        // SYLAR_LOG_DEBUG(g_logger) << "Yielding idle fiber";
         Fiber::GetThis()->yield();
         
     } // end while(true)

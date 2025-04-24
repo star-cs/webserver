@@ -43,6 +43,8 @@ set(LIB_SRC
     sylar/thread.cc
     sylar/util.cc
     sylar/worker.cc
+    sylar/address.cc
+    sylar/socket.cc
     fcontext_asm/jump_x86_64_sysv_elf_gas.S
     fcontext_asm/make_x86_64_sysv_elf_gas.S
     )
@@ -67,6 +69,10 @@ sylar_add_executable(test_iomanager "tests/test_iomanager.cc" sylar "${LIBS}")
 sylar_add_executable(test_timer "tests/test_timermanager.cc" sylar "${LIBS}")
 sylar_add_executable(test_hook "tests/test_hook.cc" sylar "${LIBS}")
 sylar_add_executable(test_memorypool "tests/test_memorypool.cc" sylar "${LIBS}")
+sylar_add_executable(test_address "tests/test_address.cc" sylar "${LIBS}")
+sylar_add_executable(test_socket_tcp_server "tests/test_socket_tcp_server.cc" sylar "${LIBS}")
+sylar_add_executable(test_socket_tcp_client "tests/test_socket_tcp_client.cc" sylar "${LIBS}")
+sylar_add_executable(test_socket "tests/test_socket.cc" sylar "${LIBS}")
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)

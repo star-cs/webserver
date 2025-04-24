@@ -228,7 +228,8 @@ void Scheduler::run() {
         bool tickle_me = false;     // 是否 tickle 其他线程进行任务调度
         {
             MutexType::Lock lock(m_mutex);
-            SYLAR_LOG_DEBUG(g_logger) << "m_tasks size : " << m_tasks.size(); 
+            if(m_tasks.size())
+                SYLAR_LOG_DEBUG(g_logger) << "m_tasks size : " << m_tasks.size(); 
             auto it = m_tasks.begin();
             while(it != m_tasks.end()){
                 // 如果当前的任务 不在 目标线程里
@@ -242,7 +243,7 @@ void Scheduler::run() {
 
                 SYLAR_ASSERT(it->fiber || it->cb);
 
-                if(it->fiber){
+                if(it->fiber && it->fiber->getState() == Fiber::RUNNING){
                     // 任务队列时的协程一定是 READY 状态
                     SYLAR_ASSERT(it->fiber->getState() == Fiber::READY);
                 }

@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include "log.h"
 #include "util.h"
+#include "hook.h"
 
 static sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 
@@ -66,11 +67,11 @@ namespace sylar{
              * 文件状态标志（F_GETFL/F_SETFL）控制文件访问方式
              * 标准规定O_NONBLOCK属于文件状态标志，必须通过F_GETFL/F_SETFL操作
              */
-            // 这里 会调用到 Hook 的 fcntl，但是fcntl里的get(), autocreate默认为false，所以这里不会循环调用 创建 FdCtx，不会死锁。
-            int flags = fcntl(m_fd, F_GETFL, 0);
+            // 这里不能使用fcntl，因为hook fcntl会再次 FdManager::get()
+            int flags = fcntl_f(m_fd, F_GETFL, 0);
             if(!(flags & O_NONBLOCK)){
                 // 同上
-                fcntl(m_fd, F_SETFL, flags | O_NONBLOCK);   // 设置非阻塞。
+                fcntl_f(m_fd, F_SETFL, flags | O_NONBLOCK);   // 设置非阻塞。
             }
             m_sysNonblock = true;
         }else{ 
@@ -113,6 +114,7 @@ namespace sylar{
         if(fd == -1){
             return nullptr;
         }
+
         RWMutexType::ReadLock lock(m_mutex);
         /**
          * 总结：
@@ -136,8 +138,9 @@ namespace sylar{
                 return m_datas[fd];
             }
         }
-        lock.unlock();        
-        RWMutex::WriteLock lock2(m_mutex);
+        lock.unlock();
+
+        RWMutexType::WriteLock lock2(m_mutex);
         FdCtx::ptr fd_ctx(new FdCtx(fd));   //创建
         if(fd >= (int)m_datas.size()){
             m_datas.resize(fd * 1.5);

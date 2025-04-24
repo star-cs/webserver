@@ -11,5 +11,8 @@
 #include "scheduler.h"
 #include "iomanager.h"
 #include "timermanager.h"
+#include "memorypool.h"
+#include "address.h"
+#include "socket.h"
 
 #endif
