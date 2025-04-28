@@ -27,7 +27,7 @@ Buffer::Buffer(size_t buffer_size, size_t threshold, size_t linear_growth)
 }
 
 void Buffer::push(const char* data, size_t len) {
-    MutexType::Lock lock(m_mutex);
+    RWMutexType::WriteLock lock(m_mutex);
     ToBeEnough(len);
     std::copy(data, data + len, &m_buffer[m_write_pos]);
     m_write_pos += len;
@@ -39,52 +39,63 @@ void Buffer::push(const std::string& str){
 
 
 char* Buffer::readBegin(int len) {
+    RWMutexType::ReadLock lock(m_mutex);
     assert(static_cast<size_t>(len) < readableSize());
     return &m_buffer[m_read_pos];
 }
 
 bool Buffer::isEmpty() {
+    RWMutexType::ReadLock lock(m_mutex);
     return m_write_pos == m_read_pos; 
 }
 
 void Buffer::swap(Buffer& buf) {
-    MutexType::Lock lock(m_mutex);
+    RWMutexType::WriteLock lock(m_mutex);
     m_buffer.swap(buf.m_buffer);
     std::swap(m_read_pos, buf.m_read_pos);
     std::swap(m_write_pos, buf.m_write_pos);
 }
 
 size_t Buffer::writeableSize() {
+    RWMutexType::ReadLock lock(m_mutex);
     return m_buffer.size() - m_write_pos;
 }
 
 size_t Buffer::readableSize() const {
+    RWMutexType::ReadLock lock(m_mutex);
     return m_write_pos - m_read_pos;
 }
 
 const char* Buffer::Begin() const {
+    RWMutexType::ReadLock lock(m_mutex);
     return &m_buffer[m_read_pos];
 }
 
 void Buffer::moveWritePos(int len) {
-    MutexType::Lock lock(m_mutex);
+    RWMutexType::WriteLock lock(m_mutex);
     assert(static_cast<size_t>(len) <= writeableSize());
     m_write_pos += len;
 }
 
 void Buffer::moveReadPos(int len) {
-    MutexType::Lock lock(m_mutex);
+    RWMutexType::WriteLock lock(m_mutex);
     assert(static_cast<size_t>(len) <= readableSize());
     m_read_pos += len;
 }
 
 void Buffer::Reset() {
-    MutexType::Lock lock(m_mutex);
+    RWMutexType::WriteLock lock(m_mutex);
     m_write_pos = 0;
     m_read_pos = 0;
 }
 
+std::string Buffer::dump() const{
+    RWMutexType::ReadLock lock(m_mutex);
+    return std::string(Begin(), readableSize());
+}
+
 void Buffer::ToBeEnough(size_t len) {
+    RWMutexType::WriteLock lock(m_mutex);
     while (len > writeableSize()) {
         size_t new_size = m_buffer.size();
         if (new_size < m_threshold) {
@@ -213,5 +224,11 @@ void BufferManager::ThreadEntry() {
         }
     }
 }
+
+std::ostream &operator<<(std::ostream &os, Buffer &buf){
+    os << buf.dump();
+    return os;
+}
+
 
 } // namespace sylar

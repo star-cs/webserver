@@ -8,6 +8,9 @@
 #include "mutex.h"
 #include "singleton.h"
 
+#define SYLAR_THREAD_MALLOC(stackSize_) sylar::threadCache::GetInstance()->allocate(stackSize_)
+#define SYLAR_THREAD_FREE(stack_, stackSize_) sylar::threadCache::GetInstance()->deallocate(stack_, stackSize_)
+
 namespace sylar{
 
 constexpr size_t ALIGNMENT = 8;

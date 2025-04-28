@@ -92,7 +92,7 @@ namespace sylar {
     class Buffer {
     public:
         using ptr = std::shared_ptr<Buffer>;
-        using MutexType = Spinlock;
+        using RWMutexType = RWMutex;
 
         Buffer(size_t buffer_size);
         Buffer(size_t buffer_size, size_t threshold, size_t linear_growth);
@@ -108,12 +108,13 @@ namespace sylar {
         void moveWritePos(int len);
         void moveReadPos(int len);
         void Reset();
+        std::string dump() const;
 
     protected:
         void ToBeEnough(size_t len);
 
     private:
-        MutexType m_mutex;
+        mutable RWMutexType m_mutex;
         size_t m_buffer_size;
         size_t m_threshold;
         size_t m_linear_growth;

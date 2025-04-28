@@ -26,15 +26,15 @@ static ConfigVar<uint32_t>::ptr g_fiber_stack_size = Config::Lookup<uint32_t>("f
 Context::Context(fn_t fn, intptr_t vp, std::size_t stackSize)
     : fn_(fn), vp_(vp), stackSize_(stackSize){
     stackSize_ = stackSize_ ? stackSize_ : g_fiber_stack_size->getValue();
-    stack_ = (char*)threadCache::GetInstance()->allocate(stackSize_);
+    stack_ = (char*)SYLAR_THREAD_MALLOC(stackSize_);
     
     ctx_ = libgo_make_fcontext(stack_ + stackSize_, stackSize_, fn_);
 }
 
 Context::~Context(){
     if (stack_) {
-        threadCache::GetInstance()->deallocate(stack_, stackSize_);
-        stack_ = NULL;
+        SYLAR_THREAD_FREE(stack_, stackSize_);
+        stack_ = nullptr;
     }
 }
 
@@ -154,13 +154,14 @@ void Fiber::MainFunc(intptr_t vp){
     SYLAR_ASSERT(cur);
     try{
         cur->m_cb();
-        cur->m_cb = nullptr;
-        cur->m_state = State::TERM;
     } catch(std::exception& e){
         SYLAR_LOG_ERROR(g_logger) << "Fiber::MainFunc() error " << e.what();
     } catch(...){
         SYLAR_LOG_ERROR(g_logger) << "Fiber Excpet ";
     }
+    cur->m_cb = nullptr;
+    cur->m_state = State::TERM;
+    
     cur->yield();
 }
 

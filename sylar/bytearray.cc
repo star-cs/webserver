@@ -1,6 +1,7 @@
 #include "bytearray.h"
 #include "log.h"
 #include "endian.h"
+#include "memorypool.h"
 #include <iomanip>
 
 namespace sylar{
@@ -9,7 +10,7 @@ static sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 
 
 ByteArray::Node::Node(size_t s)
-    :ptr(new char[s])
+    :ptr((char*)SYLAR_THREAD_MALLOC(s))
     ,next(nullptr)
     ,size(s){
 
@@ -24,7 +25,8 @@ ByteArray::Node::Node()
 
 ByteArray::Node::~Node(){
     if(ptr){
-        delete[] ptr;
+        SYLAR_THREAD_FREE(ptr, size);
+        ptr = nullptr;
     }
 }
 
@@ -434,6 +436,7 @@ void ByteArray::read(void* buf, size_t size, size_t position) const{
 
 void ByteArray::setPosition(size_t v){
     if(v > m_capacity){
+        SYLAR_LOG_ERROR(g_logger) << "v = " << v << "m_capacity = " << m_capacity; 
         throw std::out_of_range("set_position out of range");
     }
 

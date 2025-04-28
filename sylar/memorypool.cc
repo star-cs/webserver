@@ -413,7 +413,6 @@ PageCache::~PageCache(){
     }
     spanMap_.clear();
     freeSpans_.clear();
-    printf("~PageCache()");
 }
 
 }

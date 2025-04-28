@@ -346,7 +346,7 @@ public:
     /**
      * @brief 设置ByteArray当前位置，移动m_cur到目标position所在的节点
      * @post 如果m_position > m_size 则 m_size = m_position
-     * @exception 如果m_position > m_capacity 则抛出 std::out_of_range
+     * @exception 如果m_position > m_capacity 则抛出 std::out_of_range。
      */
     void setPosition(size_t v);
 

@@ -46,6 +46,7 @@ set(LIB_SRC
     sylar/worker.cc
     sylar/address.cc
     sylar/socket.cc
+    sylar/tcp_server.cc
     fcontext_asm/jump_x86_64_sysv_elf_gas.S
     fcontext_asm/make_x86_64_sysv_elf_gas.S
     )
@@ -75,6 +76,7 @@ sylar_add_executable(test_socket_tcp_server "tests/test_socket_tcp_server.cc" sy
 sylar_add_executable(test_socket_tcp_client "tests/test_socket_tcp_client.cc" sylar "${LIBS}")
 sylar_add_executable(test_socket "tests/test_socket.cc" sylar "${LIBS}")
 sylar_add_executable(test_bytearray "tests/test_bytearray.cc" sylar "${LIBS}")
+sylar_add_executable(test_tcp_server "tests/test_tcp_server.cc" sylar "${LIBS}")
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
