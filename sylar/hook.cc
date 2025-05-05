@@ -126,7 +126,7 @@ static ssize_t do_io(int fd,
     std::shared_ptr<timer_info> tinfo(new timer_info);
 
 retry:
-    SYLAR_LOG_DEBUG(g_logger) << hook_fun_name << " event " << event;
+    // SYLAR_LOG_DEBUG(g_logger) << hook_fun_name << " event " << event;
     ssize_t n = fun(fd, std::forward<Args>(args)...);
     // SYLAR_LOG_DEBUG(g_logger) << "test " << n;
     while(n == -1 && errno == EINTR){    // 系统调用被信号中断

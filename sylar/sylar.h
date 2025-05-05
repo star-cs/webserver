@@ -16,5 +16,14 @@
 #include "socket.h"
 #include "bytearray.h"
 #include "tcp_server.h"
+#include "http/http.h"
+#include "http/http_parser.h"
+#include "stream.h"
+#include "streams/socket_stream.h"
+#include "http/http_session.h"
+#include "http/http_server.h"
+#include "http/servlet.h"
+#include "http/http_connection.h"
+#include "uri.h"
 
 #endif

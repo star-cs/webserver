@@ -113,7 +113,7 @@ bool Address::Lookup(std::vector<Address::ptr> &result, const std::string &host,
     while(next){
         result.push_back(Create(next->ai_addr, (socklen_t)next->ai_addrlen));
         // ip/端口 可以对应多个套接字类型，比如SOCK_STREAM，SOCK_DGRAM，SOCK_RAW
-        SYLAR_LOG_DEBUG(g_logger) << "family:" << next->ai_family << ", sock type:" << next->ai_socktype;
+        // SYLAR_LOG_DEBUG(g_logger) << "family:" << next->ai_family << ", sock type:" << next->ai_socktype;
         next = next->ai_next;
     }
 
@@ -616,6 +616,11 @@ socklen_t UnknownAddress::getAddrLen() const{
 std::ostream &UnknownAddress::insert(std::ostream &os) const{
     os << "[UnknowAddress family = " << m_addr.sa_family << "]";
     return os;
+}
+
+std::ostream &operator<<(std::ostream &os, const Address &addr)
+{
+    return addr.insert(os);
 }
 
 } // namespace sylar

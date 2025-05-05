@@ -47,6 +47,18 @@ set(LIB_SRC
     sylar/address.cc
     sylar/socket.cc
     sylar/tcp_server.cc
+    sylar/http/http-parser/http_parser.c
+    sylar/http/http.cc
+    sylar/http/http_parser.cc
+
+    sylar/stream.cc
+    sylar/streams/socket_stream.cc
+    sylar/http/http_session.cc
+    sylar/http/servlet.cc
+    sylar/http/http_server.cc
+    sylar/uri.cc
+    sylar/http/http_connection.cc
+    
     fcontext_asm/jump_x86_64_sysv_elf_gas.S
     fcontext_asm/make_x86_64_sysv_elf_gas.S
     )
@@ -77,6 +89,10 @@ sylar_add_executable(test_socket_tcp_client "tests/test_socket_tcp_client.cc" sy
 sylar_add_executable(test_socket "tests/test_socket.cc" sylar "${LIBS}")
 sylar_add_executable(test_bytearray "tests/test_bytearray.cc" sylar "${LIBS}")
 sylar_add_executable(test_tcp_server "tests/test_tcp_server.cc" sylar "${LIBS}")
+sylar_add_executable(test_http_parser "tests/test_http_parser.cc" sylar "${LIBS}")
+sylar_add_executable(test_http_server "tests/test_http_server.cc" sylar "${LIBS}")
+sylar_add_executable(test_http_connection "tests/test_http_connection.cc" sylar "${LIBS}")
+
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)

@@ -8,6 +8,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include "thread.h"
+#include <unistd.h>
 namespace sylar{
 
 /**

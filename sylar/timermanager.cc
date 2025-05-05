@@ -32,7 +32,7 @@ bool Timer::Comparator::operator()(const Timer::ptr& lhs, const Timer::ptr& rhs)
 
 Timer::Timer(uint64_t ms, std::function<void()> cb, bool recurring, TimerManager* manager)
     :m_ms(ms), m_cb(cb), m_recurring(recurring), m_manager(manager){
-    m_next = GetCurrentTimeMS() + m_ms;     // 执行的 绝对时间
+    m_next = GetCurrentMS() + m_ms;     // 执行的 绝对时间
 }
 
 Timer::Timer(uint64_t next): m_next(next){
@@ -87,7 +87,7 @@ bool Timer::reset(uint64_t ms, bool from_now){
 
     uint64_t start = 0;
     if(from_now){
-        start = GetCurrentTimeMS();
+        start = GetCurrentMS();
     }else{
         start = m_next - m_ms;  // 原本的事件开始的事件。
     }
@@ -100,7 +100,7 @@ bool Timer::reset(uint64_t ms, bool from_now){
 
 
 TimerManager::TimerManager(){
-    m_previouseTime = GetCurrentTimeMS();
+    m_previouseTime = GetCurrentMS();
 }
 
 TimerManager::~TimerManager(){
@@ -142,7 +142,7 @@ uint64_t TimerManager::getNextTimer(){
     }
 
     const Timer::ptr& next = *m_timers.begin();
-    uint64_t now_ms = GetCurrentTimeMS();
+    uint64_t now_ms = GetCurrentMS();
     if(now_ms >= next->m_next){
         return 0;
     } else {
@@ -151,7 +151,7 @@ uint64_t TimerManager::getNextTimer(){
 }
 
 void TimerManager::listExpiredCb(std::vector<std::function<void()> >& cbs){
-    uint64_t now_ms = GetCurrentTimeMS();
+    uint64_t now_ms = GetCurrentMS();
     std::vector<Timer::ptr> expired;
     {
         RWMutexType::ReadLock lock(m_mutex);

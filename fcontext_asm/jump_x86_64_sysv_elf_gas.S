@@ -90,3 +90,6 @@ libgo_jump_fcontext:
     movq  %rdx, %rdi # 同时作为新上下文的第一个参数
     jmp  *%r8        # 跳转到目标地址（实现上下文切换）
 .size libgo_jump_fcontext,.-libgo_jump_fcontext
+
+# 标记不需要可执行栈（安全增强）
+.section .note.GNU-stack,"",%progbits

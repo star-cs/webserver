@@ -3,6 +3,7 @@
 #include "endian.h"
 #include "memorypool.h"
 #include <iomanip>
+#include <math.h>
 
 namespace sylar{
 

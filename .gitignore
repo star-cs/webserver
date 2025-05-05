@@ -39,7 +39,6 @@ build
 lib
 
 # bin
-test_memorypool
 test_config
 test_env
 test_log
@@ -62,6 +61,8 @@ test_http_server
 test_uri
 test_http_connection
 test_daemon
+test_socket
+test_memorypool
 
 
 # log

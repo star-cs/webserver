@@ -389,7 +389,7 @@ public:
         }    
         
         // find_first_not_of 方法查找第一个不属于指定 字符集 的字符位置。
-        if(name.find_first_not_of("abcdefghijklmnopqrstuvwsyz._1234567890") != std::string::npos){
+        if(name.find_first_not_of("abcdefghijklmnopqrstuvwxyz._1234567890") != std::string::npos){
             SYLAR_LOG_ERROR(SYLAR_LOG_ROOT()) << "Lockup name invalid" << name;
             throw std::invalid_argument(name);
         }
