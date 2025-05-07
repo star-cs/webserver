@@ -1,0 +1,7 @@
+workers:
+    io:
+      worker_num: 1
+      thread_num: 3
+    net:
+      worker_num: 1
+      thread_num: 3

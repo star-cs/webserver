@@ -28,39 +28,41 @@ include_directories(/usr/local/include)
 link_directories(/usr/local/lib)            # 一般安装后，include是头文件，lib是库文件
 
 set(LIB_SRC
-    sylar/config.cc
-    sylar/bytearray.cc
-    sylar/config_init.cc
-    sylar/fd_manager.cc 
-    sylar/mutex.cc
-    sylar/memorypool.cc
-    sylar/fiber.cc
-    sylar/hook.cc
-    sylar/iomanager.cc
-    sylar/buffermanager.cc
-    sylar/log.cc
-    sylar/scheduler.cc
-    sylar/timermanager.cc
-    sylar/thread.cc
-    sylar/util.cc
-    sylar/worker.cc
-    sylar/address.cc
-    sylar/socket.cc
-    sylar/tcp_server.cc
-    sylar/http/http-parser/http_parser.c
-    sylar/http/http.cc
-    sylar/http/http_parser.cc
+    sylar/core/config.cc
+    sylar/core/config_init.cc
+    sylar/core/fd_manager.cc 
+    sylar/core/mutex.cc
+    sylar/core/memorypool.cc
+    sylar/core/fiber.cc
+    sylar/core/hook.cc
+    sylar/core/iomanager.cc
+    sylar/core/buffermanager.cc
+    sylar/core/log.cc
+    sylar/core/scheduler.cc
+    sylar/core/timermanager.cc
+    sylar/core/thread.cc
+    sylar/core/util.cc
+    sylar/core/worker.cc
+    sylar/core/env.cc
 
-    sylar/stream.cc
-    sylar/streams/socket_stream.cc
-    sylar/http/http_session.cc
-    sylar/http/servlet.cc
-    sylar/http/http_server.cc
-    sylar/uri.cc
-    sylar/http/http_connection.cc
+    sylar/net/bytearray.cc
+    sylar/net/address.cc
+    sylar/net/socket.cc
+    sylar/net/tcp_server.cc
+    sylar/net/http/http-parser/http_parser.c
+    sylar/net/http/http.cc
+    sylar/net/http/http_parser.cc
+
+    sylar/net/stream.cc
+    sylar/net/streams/socket_stream.cc
+    sylar/net/http/http_session.cc
+    sylar/net/http/servlet.cc
+    sylar/net/http/http_server.cc
+    sylar/net/uri.cc
+    sylar/net/http/http_connection.cc
     
-    fcontext_asm/jump_x86_64_sysv_elf_gas.S
-    fcontext_asm/make_x86_64_sysv_elf_gas.S
+    sylar/core/fcontext_asm/jump_x86_64_sysv_elf_gas.S
+    sylar/core/fcontext_asm/make_x86_64_sysv_elf_gas.S
     )
 
 add_library(sylar SHARED ${LIB_SRC})
@@ -73,25 +75,27 @@ set(LIBS
     dl
 )
 
-sylar_add_executable(test_log "tests/test_log.cc" sylar "${LIBS}")
-sylar_add_executable(test_config "tests/test_config.cc" sylar "${LIBS}")
-sylar_add_executable(test_thread "tests/test_thread.cc" sylar "${LIBS}")
-sylar_add_executable(test_util "tests/test_util.cc" sylar "${LIBS}")
-sylar_add_executable(test_fiber "tests/test_fiber.cc" sylar "${LIBS}")
-sylar_add_executable(test_scheduler "tests/test_scheduler.cc" sylar "${LIBS}")
-sylar_add_executable(test_iomanager "tests/test_iomanager.cc" sylar "${LIBS}")
-sylar_add_executable(test_timer "tests/test_timermanager.cc" sylar "${LIBS}")
-sylar_add_executable(test_hook "tests/test_hook.cc" sylar "${LIBS}")
-sylar_add_executable(test_memorypool "tests/test_memorypool.cc" sylar "${LIBS}")
-sylar_add_executable(test_address "tests/test_address.cc" sylar "${LIBS}")
-sylar_add_executable(test_socket_tcp_server "tests/test_socket_tcp_server.cc" sylar "${LIBS}")
-sylar_add_executable(test_socket_tcp_client "tests/test_socket_tcp_client.cc" sylar "${LIBS}")
-sylar_add_executable(test_socket "tests/test_socket.cc" sylar "${LIBS}")
-sylar_add_executable(test_bytearray "tests/test_bytearray.cc" sylar "${LIBS}")
-sylar_add_executable(test_tcp_server "tests/test_tcp_server.cc" sylar "${LIBS}")
-sylar_add_executable(test_http_parser "tests/test_http_parser.cc" sylar "${LIBS}")
-sylar_add_executable(test_http_server "tests/test_http_server.cc" sylar "${LIBS}")
-sylar_add_executable(test_http_connection "tests/test_http_connection.cc" sylar "${LIBS}")
+sylar_add_executable(test_log "tests/core/test_log.cc" sylar "${LIBS}")
+sylar_add_executable(test_config "tests/core/test_config.cc" sylar "${LIBS}")
+sylar_add_executable(test_thread "tests/core/test_thread.cc" sylar "${LIBS}")
+sylar_add_executable(test_util "tests/core/test_util.cc" sylar "${LIBS}")
+sylar_add_executable(test_fiber "tests/core/test_fiber.cc" sylar "${LIBS}")
+sylar_add_executable(test_scheduler "tests/core/test_scheduler.cc" sylar "${LIBS}")
+sylar_add_executable(test_iomanager "tests/core/test_iomanager.cc" sylar "${LIBS}")
+sylar_add_executable(test_timer "tests/core/test_timermanager.cc" sylar "${LIBS}")
+sylar_add_executable(test_hook "tests/core/test_hook.cc" sylar "${LIBS}")
+sylar_add_executable(test_memorypool "tests/core/test_memorypool.cc" sylar "${LIBS}")
+sylar_add_executable(test_env "tests/core/test_env.cc" sylar "${LIBS}")
+
+sylar_add_executable(test_address "tests/net/test_address.cc" sylar "${LIBS}")
+sylar_add_executable(test_socket_tcp_server "tests/net/test_socket_tcp_server.cc" sylar "${LIBS}")
+sylar_add_executable(test_socket_tcp_client "tests/net/test_socket_tcp_client.cc" sylar "${LIBS}")
+sylar_add_executable(test_socket "tests/net/test_socket.cc" sylar "${LIBS}")
+sylar_add_executable(test_bytearray "tests/net/test_bytearray.cc" sylar "${LIBS}")
+sylar_add_executable(test_tcp_server "tests/net/test_tcp_server.cc" sylar "${LIBS}")
+sylar_add_executable(test_http_parser "tests/net/http/test_http_parser.cc" sylar "${LIBS}")
+sylar_add_executable(test_http_server "tests/net/http/test_http_server.cc" sylar "${LIBS}")
+sylar_add_executable(test_http_connection "tests/net/http/test_http_connection.cc" sylar "${LIBS}")
 
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

@@ -63,6 +63,7 @@ test_http_connection
 test_daemon
 test_socket
 test_memorypool
+test_env
 
 
 # log
