@@ -1,9 +1,9 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include "sylar/core/config.h"
-#include "sylar/core/log.h"
-#include "sylar/core/util.h"
+#include "sylar/core/config/config.h"
+#include "sylar/core/log/log.h"
+#include "sylar/core/util/util.h"
 
 #if 1
 // 这里 就是 意味着 在 Config.s_datas里添加了  "server.port"字符串  ConfigVar<int>的实例 键值对

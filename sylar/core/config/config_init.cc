@@ -1,10 +1,10 @@
 #include <yaml-cpp/yaml.h>
 
 #include "config_init.h"
-#include "config.h"
-#include "log.h"
-#include "iomanager.h"
-#include "worker.h"
+#include "sylar/core/config/config.h"
+#include "sylar/core/log/log.h"
+#include "sylar/core/iomanager.h"
+#include "sylar/core/worker.h"
 
 namespace sylar
 {
@@ -217,19 +217,12 @@ struct LogIniter{
                     }
                 }
                 if(i.bufMgr.isValid()){
-                    auto cur_worker = WorkerMgr::GetInstance()->getAsIOManager(i.bufMgr.work_type).get();
-                    if(cur_worker == nullptr){
-                        std::cout << "请检查work_type, 是否是正确注册的调度器名" << i.bufMgr.work_type << std::endl;
-                        continue;
-                    }
                     BufferParams bufParams(
                         i.bufMgr.type,
                         i.bufMgr.size,
                         i.bufMgr.threshold,
                         i.bufMgr.linear_growth,
-                        i.bufMgr.swap_time,
-                        cur_worker
-                    );
+                        i.bufMgr.swap_time);
                     builder->setBufferParams(bufParams);
                 }
                 LoggerMgr::GetInstance()->addLogger(builder->Build());

@@ -1,7 +1,7 @@
 #include "bytearray.h"
-#include "sylar/core/log.h"
+#include "sylar/core/log/log.h"
 #include "endian.h"
-#include "sylar/core/memorypool.h"
+#include "sylar/core/memory/memorypool.h"
 
 #include <iomanip>
 #include <math.h>

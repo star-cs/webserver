@@ -1,20 +1,22 @@
 #ifndef __SYLAR_THREAD_H_
 #define __SYLAR_THREAD_H_
 
-#include "mutex.h"
+#include "sylar/core/mutex.h"
 
-namespace sylar{
+namespace sylar
+{
 
-class Thread : Noncopyable {
+class Thread : Noncopyable
+{
 public:
     typedef std::shared_ptr<Thread> ptr;
-    Thread(std::function<void()> cb, const std::string& name);
+    Thread(std::function<void()> cb, const std::string &name);
 
     ~Thread();
 
-    pid_t getId() const {return m_id;}
+    pid_t getId() const { return m_id; }
 
-    const std::string& getName() const {return m_name;}
+    const std::string &getName() const { return m_name; }
 
     void join();
 
@@ -23,14 +25,14 @@ public:
     static Thread *GetThis();
 
     static const std::string &GetName();
-    
+
     static void SetName(const std::string &name);
 
-    static void* run(void* args);
-    
+    static void *run(void *args);
+
 private:
     // 线程id
-    pid_t m_id= -1;
+    pid_t m_id = -1;
     // 线程
     pthread_t m_thread = 0;
     // 线程执行函数
@@ -41,6 +43,6 @@ private:
     Semaphore m_semaphore;
 };
 
-}
+} // namespace sylar
 
 #endif

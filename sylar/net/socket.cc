@@ -1,6 +1,6 @@
 #include "socket.h"
 #include "sylar/core/fd_manager.h"
-#include "sylar/core/log.h"
+#include "sylar/core/log/log.h"
 #include "sylar/core/hook.h"
 #include "sylar/core/iomanager.h"
 
@@ -132,12 +132,12 @@ bool Socket::bind(const Address::ptr addr){
     m_localAddress = addr;
     if(!isValid()){
         newSock();
-        if(SYLAR_UNLIKELY(!isValid())){
+        if(AS_UNLIKELY(!isValid())){
             return false;
         }
     }
 
-    if (SYLAR_UNLIKELY(addr->getFamily() != m_family)) {
+    if (AS_UNLIKELY(addr->getFamily() != m_family)) {
         SYLAR_LOG_ERROR(g_logger) << "bind sock.family("
                                   << m_family << ") addr.family(" << addr->getFamily()
                                   << ") not equal, addr=" << addr->toString();
@@ -176,12 +176,12 @@ bool Socket::connect(const Address::ptr addr, uint64_t timeout_ms){
     m_remoteAddress = addr;
     if(!isValid()){
         newSock();
-        if(SYLAR_UNLIKELY(!isValid())){
+        if(AS_UNLIKELY(!isValid())){
             return false;
         }
     }
 
-    if(SYLAR_UNLIKELY(addr->getFamily() != m_family)){
+    if(AS_UNLIKELY(addr->getFamily() != m_family)){
         SYLAR_LOG_ERROR(g_logger) << "connect sock.family("
                                     << m_family << ") addr.family(" << addr->getFamily()
                                     << ") not equal, addr=" << addr->toString();
@@ -465,7 +465,7 @@ void Socket::initSock(){
 
 void Socket::newSock(){
     m_sock = socket(m_family, m_type, m_protocol);
-    if (SYLAR_LIKELY(m_sock != -1)) {
+    if (AS_LIKELY(m_sock != -1)) {
         initSock();
     } else {
         SYLAR_LOG_ERROR(g_logger) << "socket(" << m_family

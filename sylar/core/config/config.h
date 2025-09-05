@@ -1,7 +1,7 @@
 #ifndef __SYLAR_CONFIG_H__
 #define __SYLAR_CONFIG_H__
 
-#include "log.h"
+#include "sylar/core/log/log.h"
 
 #include <string>
 #include <sstream>
@@ -18,8 +18,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "util.h"
-#include "mutex.h"
+#include "sylar/core/util/util.h"
+#include "sylar/core/mutex.h"
 
 namespace sylar
 {

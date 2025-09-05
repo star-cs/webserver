@@ -7,8 +7,8 @@
 #include <yaml-cpp/yaml.h>
 #include <unistd.h>
 
-#include "log.h"
-#include "thread.h"
+#include "sylar/core/log/log.h"
+#include "sylar/core/thread.h"
 
 namespace sylar{
 

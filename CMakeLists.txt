@@ -2,17 +2,17 @@ cmake_minimum_required(VERSION 3.5)
 project(sylar)
 
 include (cmake/utils.cmake)
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) 
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 # 全局编译选项配置
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # 公共编译选项
 add_compile_options(
     -rdynamic
-    -O0                     # O0 debug（开发），O2 release（编译会慢很多）
+    -O3                     # O0 debug（开发），O2 release（编译会慢很多）
     -ggdb
     -Wall
     -Wno-builtin-macro-redefined
@@ -28,22 +28,23 @@ include_directories(/usr/local/include)
 link_directories(/usr/local/lib)            # 一般安装后，include是头文件，lib是库文件
 
 set(LIB_SRC
-    sylar/core/config.cc
-    sylar/core/config_init.cc
+    sylar/core/config/config.cc
+    sylar/core/config/config_init.cc
     sylar/core/fd_manager.cc 
     sylar/core/mutex.cc
-    sylar/core/memorypool.cc
+    sylar/core/memory/memorypool.cc
     sylar/core/fiber.cc
     sylar/core/hook.cc
     sylar/core/iomanager.cc
-    sylar/core/buffermanager.cc
-    sylar/core/log.cc
+    sylar/core/common/buffermanager.cc
+    sylar/core/signal/signal.cc
+    sylar/core/log/log.cc
     sylar/core/scheduler.cc
     sylar/core/timermanager.cc
     sylar/core/thread.cc
-    sylar/core/util.cc
+    sylar/core/util/util.cc
     sylar/core/worker.cc
-    sylar/core/env.cc
+    sylar/core/util/env.cc
 
     sylar/net/bytearray.cc
     sylar/net/address.cc
@@ -86,6 +87,7 @@ sylar_add_executable(test_timer "tests/core/test_timermanager.cc" sylar "${LIBS}
 sylar_add_executable(test_hook "tests/core/test_hook.cc" sylar "${LIBS}")
 sylar_add_executable(test_memorypool "tests/core/test_memorypool.cc" sylar "${LIBS}")
 sylar_add_executable(test_env "tests/core/test_env.cc" sylar "${LIBS}")
+sylar_add_executable(test_fiber_stack_overflow "tests/core/test_fiber_stack_overflow.cc" sylar "${LIBS}")
 
 sylar_add_executable(test_address "tests/net/test_address.cc" sylar "${LIBS}")
 sylar_add_executable(test_socket_tcp_server "tests/net/test_socket_tcp_server.cc" sylar "${LIBS}")

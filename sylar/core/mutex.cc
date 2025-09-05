@@ -1,5 +1,5 @@
 #include "mutex.h"
-#include "sylar/common/macro.h"
+#include "sylar/core/common/macro.h"
 #include "scheduler.h"
 
 static sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
@@ -96,7 +96,7 @@ void FiberCondition::wait(MutexType::Lock& lock){
     {
         MutexType::Lock lock(m_mutex);
         m_waiters.push_back(std::make_pair(Scheduler::GetThis(), Fiber::GetThis()));
-        printWaiters();
+        // printWaiters();
     }
     lock.unlock();
     Fiber::GetThis()->yield();

@@ -2,13 +2,13 @@
  * 命令行参数解析应该用getopt系列接口实现，以支持选项合并和--开头的长选项
  */
 #include "env.h"
-#include "log.h"
+#include "sylar/core/log/log.h"
 #include <string.h>
 #include <iostream>
 #include <iomanip>
 #include <unistd.h>
 #include <stdlib.h>
-#include "config.h"
+#include "sylar/core/config/config.h"
 
 namespace sylar {
 
@@ -32,7 +32,13 @@ bool Env::init(int argc, char **argv) {
     // 构造/proc/self/exe的路径，用于获取程序的执行路径
     sprintf(link, "/proc/%d/exe", getpid());
     // 读取符号链接的实际路径
-    readlink(link, path, sizeof(path));
+    auto len = readlink(link, path, sizeof(path));
+    if (len == -1) {
+        // 处理错误，例如打印错误信息
+        perror("readlink failed");
+        // 根据需要进行错误处理，如返回或退出
+        return -1;
+    }
     // /path/xxx/exe
     m_exe = path;
 

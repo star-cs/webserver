@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <memory>
-#include "sylar/common/noncopyable.h"
+#include "sylar/core/common/noncopyable.h"
 #include "sylar/core/iomanager.h"
 #include "socket.h"
 #include "address.h"

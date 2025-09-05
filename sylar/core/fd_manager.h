@@ -4,11 +4,13 @@
 #include <vector>
 #include <memory>
 #include "mutex.h"
-#include "sylar/common/singleton.h"
+#include "sylar/core/common/singleton.h"
 
-namespace sylar{
+namespace sylar
+{
 
-class FdCtx : public std::enable_shared_from_this<FdCtx>{
+class FdCtx : public std::enable_shared_from_this<FdCtx>
+{
 public:
     typedef std::shared_ptr<FdCtx> ptr;
     FdCtx(int fd);
@@ -16,19 +18,19 @@ public:
 
     bool init();
 
-    bool isInit() const {return m_isInit;}
+    bool isInit() const { return m_isInit; }
 
-    bool isSocket() const {return m_isSocket;}
+    bool isSocket() const { return m_isSocket; }
 
-    bool isClose() const {return m_isClosed;}
+    bool isClose() const { return m_isClosed; }
 
-    void setUserNonblock(bool v){m_userNonblock = v;}
+    void setUserNonblock(bool v) { m_userNonblock = v; }
 
-    bool getUserNonblock() const {return m_userNonblock;}
+    bool getUserNonblock() const { return m_userNonblock; }
 
-    void setSysNonblock(bool v){m_sysNonblock = v;}
+    void setSysNonblock(bool v) { m_sysNonblock = v; }
 
-    bool getSysNonblock() const {return m_sysNonblock;}
+    bool getSysNonblock() const { return m_sysNonblock; }
 
     /**
      * @brief 设置超时时间
@@ -45,18 +47,18 @@ public:
     int getTimeout(int type);
 
 private:
-    bool m_isInit: 1;
-    bool m_isSocket: 1;
-    bool m_sysNonblock: 1;   // 是否 hook 非阻塞
-    bool m_userNonblock: 1;  // 是否 用户主动设置 非阻塞
-    bool m_isClosed: 1;
+    bool m_isInit : 1;
+    bool m_isSocket : 1;
+    bool m_sysNonblock : 1;  // 是否 hook 非阻塞
+    bool m_userNonblock : 1; // 是否 用户主动设置 非阻塞
+    bool m_isClosed : 1;
     int m_fd;
-    uint64_t m_recvTimeout;  // 读超时时间毫秒
-    uint64_t m_sendTimeout;  // 写超时时间毫秒
+    uint64_t m_recvTimeout; // 读超时时间毫秒
+    uint64_t m_sendTimeout; // 写超时时间毫秒
 };
 
-
-class FdManager{
+class FdManager
+{
 public:
     typedef RWMutex RWMutexType;
 
@@ -84,8 +86,6 @@ private:
 // 文件句柄管理类 单例化
 typedef Singleton<FdManager> FdMgr;
 
-}
-
-
+} // namespace sylar
 
 #endif

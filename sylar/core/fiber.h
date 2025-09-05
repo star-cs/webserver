@@ -5,45 +5,43 @@
 #include <ucontext.h>
 #include <cstring>
 
-namespace sylar {
-
+namespace sylar
+{
 
 extern "C"
 {
-    
-typedef void* fcontext_t;
-typedef void (*fn_t)(intptr_t);
-    
-intptr_t libgo_jump_fcontext(fcontext_t * ofc, fcontext_t nfc,
-            intptr_t vp, bool preserve_fpu = false);
-    
-fcontext_t libgo_make_fcontext(void* stack, std::size_t size, fn_t fn);
-    
+
+    typedef void *fcontext_t;
+    typedef void (*fn_t)(intptr_t);
+
+    intptr_t libgo_jump_fcontext(fcontext_t *ofc, fcontext_t nfc, intptr_t vp,
+                                 bool preserve_fpu = false);
+
+    fcontext_t libgo_make_fcontext(void *stack, std::size_t size, fn_t fn);
+
 } // extern "C
 
-
-class Context{
+class Context
+{
 public:
     Context() = default;
 
     Context(fn_t fn, intptr_t vp, std::size_t stackSize);
-    
+
     ~Context();
 
-    bool hasStack(){
-        return stack_ != nullptr;
-    }
+    bool hasStack() { return stack_ != nullptr; }
 
-    void SwapTo(Context & other)
-    {
-        libgo_jump_fcontext(&ctx_, other.ctx_, other.vp_);
-    }
+    char *getStackAddr() const { return stack_; }
+    uint32_t getStackSize() const { return stackSize_; }
+
+    void SwapTo(Context &other) { libgo_jump_fcontext(&ctx_, other.ctx_, other.vp_); }
 
 private:
     fcontext_t ctx_;
     fn_t fn_;
     intptr_t vp_;
-    char* stack_ = nullptr;
+    char *stack_ = nullptr;
     uint32_t stackSize_ = 0;
     int protectPage_ = 0;
 };
@@ -54,7 +52,8 @@ private:
  * 主协程 ：GetThis() -> Fiber()
  * 
  */
-class Fiber : public std::enable_shared_from_this<Fiber> {
+class Fiber : public std::enable_shared_from_this<Fiber>
+{
 public:
     typedef std::shared_ptr<Fiber> ptr;
     /**
@@ -71,6 +70,7 @@ public:
         /// 结束态，协程的回调函数执行完之后为TERM状态
         TERM
     };
+
 private:
     /**
      * @brief 构造函数
@@ -78,6 +78,7 @@ private:
      * 这个协程只能由GetThis()方法调用，所以定义成私有方法
      */
     Fiber();
+
 public:
     /**
      * @brief 构造函数，用于创建用户协程
@@ -114,6 +115,9 @@ public:
      * @brief 获取协程状态
      */
     State getState() const { return m_state; }
+    void setState(State state) { m_state = state; }
+    const Context &getContext() const { return m_ctx; }
+
 public:
     /**
      * @brief 设置当前正在运行的协程，即设置线程局部变量t_fiber的值
@@ -139,11 +143,12 @@ public:
      * @brief 获取当前协程id
      */
     static uint64_t GetFiberId();
+
 private:
     /// 协程id
-    uint64_t m_id        = 0;
+    uint64_t m_id = 0;
     /// 协程状态
-    State m_state        = READY;
+    State m_state = READY;
     /// 协程上下文
     Context m_ctx;
     /// 协程入口函数

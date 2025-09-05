@@ -14,11 +14,11 @@
 #include <sys/eventfd.h>
 #include <iostream>
 
-#include "sylar/common/macro.h"
-#include "sylar/common/singleton.h"
-#include "mutex.h"
-#include "thread.h"
-#include "buffermanager.h"
+#include "sylar/core/common/macro.h"
+#include "sylar/core/common/singleton.h"
+#include "sylar/core/mutex.h"
+#include "sylar/core/thread.h"
+#include "sylar/core/common/buffermanager.h"
 
 #define SYLAR_LOG_LEVEL(logger, level) \
     if(logger->getLevel() <= level) \
@@ -38,8 +38,8 @@
 #define SYLAR_LOG_FMT_LEVEL(logger, level, fmt, ...) \
     if(logger->getLevel() <= level) \
         sylar::LogEventWrap(logger, sylar::LogEvent::ptr(new sylar::LogEvent(__FILE__, __LINE__, 0, \
-                                                                            sylar::GetThreadId(), sylar::GetFiberId(), \
-                                                                            time(0), level))).getEvent()->format(fmt, __VA_ARGS__)
+                                                                            sylar::GetThreadId(), sylar::Thread::GetName(), \
+                                                                            sylar::GetFiberId(), time(0), level))).getEvent()->format(fmt, __VA_ARGS__)
 
 #define SYLAR_LOG_FMT_DEBUG(logger, format, ...) SYLAR_LOG_FMT_LEVEL(logger, sylar::LogLevel::DEBUG, format,  __VA_ARGS__)
 #define SYLAR_LOG_FMT_INFO(logger, format, ...) SYLAR_LOG_FMT_LEVEL(logger, sylar::LogLevel::INFO, format, __VA_ARGS__)
@@ -290,7 +290,7 @@ class StdoutLogAppender : public LogAppender{
 public:
     typedef std::shared_ptr<StdoutLogAppender> ptr;
     StdoutLogAppender(LogLevel::Level level, LogFormatter::ptr formatter);
-    std::string toYamlString();
+    std::string toYamlString() override;
     void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) override;
     void log(std::shared_ptr<Logger> logger, std::vector<LogEvent::ptr> events) override;     
 private:
@@ -323,7 +323,7 @@ public:
             m_fs = NULL;
         }
     }
-    std::string toYamlString();
+    std::string toYamlString() override;
     void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) override;
     void log(std::shared_ptr<Logger> logger, std::vector<LogEvent::ptr> events) override;     
 
@@ -349,7 +349,7 @@ public:
             m_curFile = NULL;
         }
     }
-    std::string toYamlString();
+    std::string toYamlString() override;
     void log(std::shared_ptr<Logger> logger, LogEvent::ptr event) override;
     void log(std::shared_ptr<Logger> logger, std::vector<LogEvent::ptr> events) override;     
 
@@ -437,7 +437,6 @@ class Logger : public std::enable_shared_from_this<Logger>{
         void log(LogEvent::ptr event){
             if(event->getLevel() >= m_level){
                 if(m_bufMgr != nullptr){
-                    // MutexType::Lock lock(m_mutex);   当协程阻塞，这个锁就一直没释放。搞半天，给我整的怀疑人生了。
                     Buffer::ptr buf = event->serialize();
                     m_bufMgr->push(buf);
                 }else{

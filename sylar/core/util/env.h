@@ -1,8 +1,8 @@
 #ifndef __SYLAR_ENV_H__
 #define __SYLAR_ENV_H__
 
-#include "sylar/common/singleton.h"
-#include "mutex.h"
+#include "sylar/core/common/singleton.h"
+#include "sylar/core/mutex.h"
 #include <map>
 #include <vector>
 #include <string>

@@ -1,8 +1,8 @@
 #include "http_connection.h"
 
-#include "sylar/core/log.h"
+#include "sylar/core/log/log.h"
 #include "http_parser.h"
-#include "sylar/core/memorypool.h"
+#include "sylar/core/memory/memorypool.h"
 
 namespace sylar {
 namespace http{

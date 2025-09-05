@@ -1,13 +1,14 @@
 #include <cassert>
+#include <chrono>
 #include <stdexcept>
+#include <thread>
 #include <unistd.h>
 #include <sys/eventfd.h>
 #include <iostream>
 
 #include "buffermanager.h"
-#include "fiber.h"
-#include "iomanager.h"
-#include "timermanager.h"
+#include "sylar/core/iomanager.h"
+#include "sylar/core/timermanager.h"
 
 namespace sylar {
 
@@ -103,8 +104,7 @@ BufferManager::BufferManager(const functor& cb,
                             size_t buffer_size,
                             size_t threshold,
                             size_t linear_growth,
-                            size_t swap_time,
-                            IOManager* iom)
+                            size_t swap_time)
     :   m_stop(false),
         m_swap_status(false),
         m_asyncType(asyncType),
@@ -112,11 +112,13 @@ BufferManager::BufferManager(const functor& cb,
         m_buffer_consumer(std::make_shared<Buffer>(buffer_size, threshold, linear_growth)),
         m_callback(cb),
         m_swap_time(swap_time)
-{
-    assert(iom != nullptr);
-
-    iom->schedule(std::bind(&BufferManager::ThreadEntry, this));
-    m_timer = iom->addTimer(m_swap_time, std::bind(&BufferManager::TimerThreadEntry, this), true);
+{    
+    m_time_thread = std::thread([this](){
+        TimerThreadEntry();
+    });
+    m_thread = std::thread([this](){
+        ThreadEntry();
+    });
 }
 
 BufferManager::BufferManager(const functor& cb, const BufferParams& bufferParams)
@@ -126,8 +128,7 @@ BufferManager::BufferManager(const functor& cb, const BufferParams& bufferParams
         bufferParams.size,
         bufferParams.threshold,
         bufferParams.linear_growth,
-        bufferParams.swap_time,
-        bufferParams.iom)
+        bufferParams.swap_time)
 {
 }
 
@@ -137,9 +138,10 @@ BufferManager::~BufferManager() {
 }
 
 void BufferManager::stop() { 
-    m_timer->cancel();              // 删除定时器
     m_stop = true;          
     m_cond_consumer.notify_one();   // 唤醒，m_stop=true 满足条件
+    m_time_thread.join();
+    m_thread.join();
 }
 
 void BufferManager::push(const char* data, size_t len) {
@@ -173,7 +175,7 @@ void BufferManager::push(Buffer::ptr buffer) {
 void BufferManager::TimerThreadEntry(){
     {
         MutexType::Lock lock(m_mutex);
-        SYLAR_LOG_DEBUG(g_logger) << "TimerThreadEntry started.";
+        // SYLAR_LOG_DEBUG(g_logger) << "TimerThreadEntry started.";
 
         if ((!m_buffer_productor->isEmpty() && m_buffer_consumer->isEmpty()) || m_stop) {
             swap_buffers();
@@ -190,13 +192,14 @@ void BufferManager::TimerThreadEntry(){
         m_callback(m_buffer_consumer);
         m_buffer_consumer->Reset();
     }
+    std::this_thread::sleep_for(std::chrono::seconds(m_swap_time));
 }
 
 void BufferManager::ThreadEntry() {
     while(true){
         {
             MutexType::Lock lock(m_mutex);
-            SYLAR_LOG_DEBUG(g_logger) << "ThreadEntry started.";
+            // SYLAR_LOG_DEBUG(g_logger) << "ThreadEntry started.";
             m_cond_consumer.wait(lock, [&](){
                 return m_stop || (!m_buffer_productor->isEmpty() && m_buffer_consumer->isEmpty());
             });

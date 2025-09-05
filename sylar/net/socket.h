@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "address.h"
-#include "sylar/common/noncopyable.h"
+#include "sylar/core/common/noncopyable.h"
 
 namespace sylar{
 

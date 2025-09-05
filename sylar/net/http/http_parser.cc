@@ -1,7 +1,7 @@
 #include "http_parser.h"
 #include "http-parser/http_parser.h"
-#include "sylar/core/log.h"
-#include "sylar/core/config.h"
+#include "sylar/core/log/log.h"
+#include "sylar/core/config/config.h"
 
 namespace sylar{
 namespace http{

@@ -3,7 +3,7 @@
 #include <unordered_map>
 
 #include "scheduler.h"
-#include "timermanager.h"
+#include "sylar/core/timermanager.h"
 
 namespace sylar {
 
@@ -102,13 +102,13 @@ protected:
     /**
       * @brief 通知协程调度器有任务了
       */
-    void tickle();
+    void tickle() override;
 
 
     /**
      * 是否可以停止
      */
-    bool stopping();
+    bool stopping() override;
  
     /**
     * @brief 返回是否可以停止
@@ -119,7 +119,7 @@ protected:
     /**
     * @brief 无任务调度时执行idle协程
     */
-    void idle();
+    void idle() override;
 
     /**
      * 当有定时器插入到头部时，要重新更新epoll_wait的超时事件

@@ -1,7 +1,7 @@
 #ifndef __SYLAR_CONFIG_INIT_H
 #define __SYLAR_CONFIG_INIT_H
 
-#include "log.h"
+#include "sylar/core/log/log.h"
 
 namespace sylar{
 

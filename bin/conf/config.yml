@@ -1,10 +1,10 @@
 logs:
     - name: root
-      buf_mgr:
-          work_type: io
-          type: ASYNC_SAFE
-          size: 5000
-          swap_time: 10000
+      # buf_mgr:
+      #     work_type: io // 不支持，直接改成两个线程处理日志~
+      #     type: ASYNC_SAFE
+      #     size: 5000
+      #     swap_time: 10000
       level: info
       appenders:
           - type: StdoutLogAppender   # 自定义格式

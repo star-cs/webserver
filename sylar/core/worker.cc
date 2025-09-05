@@ -1,6 +1,6 @@
-#include "worker.h"
-#include "config.h"
-#include "util.h"
+#include "sylar/core/worker.h"
+#include "sylar/core/config/config.h"
+#include "sylar/core/util/util.h"
 
 namespace sylar {
 

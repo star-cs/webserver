@@ -6,8 +6,8 @@
 #include <functional>
 #include <atomic>
 
-#include "mutex.h"
-#include "sylar/common/macro.h"
+#include "sylar/core/mutex.h"
+#include "sylar/core/common/macro.h"
 
 namespace sylar {
     // log -> buffermanager -> iomanager -> log 存在循环依赖。
@@ -45,7 +45,6 @@ namespace sylar {
         size_t threshold = 0;
         size_t linear_growth = 0;
         size_t swap_time = 0;
-        IOManager* iom = nullptr;
 
         BufferParams() = default;
 
@@ -53,20 +52,15 @@ namespace sylar {
             size_t buffer_size,
             size_t thresh,
             size_t linear,
-            size_t time,
-            IOManager* io_manager)
+            size_t time)
         : type(async_type),
             size(buffer_size),
             threshold(thresh),
             linear_growth(linear),
-            swap_time(time),
-            iom(io_manager) {}
+            swap_time(time) {}
 
         bool isValid() const {
             if(size <= 0) 
-                return false;
-
-            if(iom == nullptr)
                 return false;
             
             // 非安全模式时才检查 threshold 和 linear_growth
@@ -134,8 +128,7 @@ namespace sylar {
             size_t buffer_size,
             size_t threshold,
             size_t linear_growth,
-            size_t swap_time,
-            IOManager* iom);
+            size_t swap_time);
 
         BufferManager(const functor& cb, const BufferParams& bufferParams);
 
@@ -163,7 +156,8 @@ namespace sylar {
         Buffer::ptr m_buffer_consumer;
         functor m_callback;
         size_t m_swap_time;
-        std::shared_ptr<Timer> m_timer;
+        std::thread m_time_thread;
+        std::thread m_thread;
         void swap_buffers() {
             std::swap(m_buffer_productor, m_buffer_consumer);
         }

@@ -1,5 +1,5 @@
 #include "tcp_server.h"
-#include "sylar/core/config.h"
+#include "sylar/core/config/config.h"
 
 namespace sylar{
 

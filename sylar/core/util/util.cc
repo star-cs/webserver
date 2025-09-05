@@ -10,10 +10,10 @@
 #include <algorithm>  // for std::transform()
 #include <stdarg.h>
 
-#include "util.h"
-#include "log.h"
-#include "fiber.h"
-#include "memorypool.h"
+#include "sylar/core/util/util.h"
+#include "sylar/core/log/log.h"
+#include "sylar/core/fiber.h"
+#include "sylar/core/memory/memorypool.h"
 
 namespace sylar {
 

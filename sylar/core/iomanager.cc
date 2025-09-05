@@ -5,10 +5,10 @@
 #include <fcntl.h>
 #include <vector>
 
-#include "util.h"
-#include "iomanager.h"
-#include "sylar/common/macro.h"
-#include "log.h"
+#include "sylar/core/util/util.h"
+#include "sylar/core/iomanager.h"
+#include "sylar/core/common/macro.h"
+#include "sylar/core/log/log.h"
 
 static sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 
@@ -131,7 +131,7 @@ IOManager::IOManager(size_t threads, bool use_caller, const std::string &name)
 
     contextResize(32);
 
-    start(); 
+    start(); // 启动 Scheduler,其中 this就说 IOManager,实际调用到 IOManager 重写的方法
 } 
 
 IOManager::~IOManager(){
