@@ -11,33 +11,33 @@ logs:
             level: info
             pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
 
-          - type: FileLogAppender
-            level: debug
-            pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
-            file: /home/yang/projects/webserver/tests_log/root/debug/FileLogAppender.log
+          # - type: FileLogAppender
+          #   level: debug
+          #   pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
+          #   file: /home/yang/projects/webserver/tests_log/root/debug/FileLogAppender.log
 
-          - type: RotatingFileLogAppender
-            level: error
-            pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
-            file: /home/yang/projects/webserver/tests_log/root/error/Rotating_log/
-            flush_rule: FFLUSH
-            max_size: 1000
-            max_file: 5   # 0 是无限增加日志，不写max_file也是无限增加日志文件
+          # - type: RotatingFileLogAppender
+          #   level: error
+          #   pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
+          #   file: /home/yang/projects/webserver/tests_log/root/error/Rotating_log/
+          #   flush_rule: FFLUSH
+          #   max_size: 1000
+          #   max_file: 5   # 0 是无限增加日志，不写max_file也是无限增加日志文件
 
-    - name: system
-      level: info
-      appenders:
-          # - type: StdoutLogAppender # 这里用的就是默认的 
-          #   levlel: debug
-          - type: RotatingFileLogAppender
-            level: info
-            pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
-            file: /home/yang/projects/webserver/tests_log/system/info/Rotating_log/
-            flush_rule: FFLUSH
-            max_size: 1000
-          - type: RotatingFileLogAppender
-            level: error
-            pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
-            file: /home/yang/projects/webserver/tests_log/system/error/Rotating_log/
-            flush_rule: FFLUSH
-            max_size: 1000
+    # - name: system
+    #   level: info
+    #   appenders:
+    #       # - type: StdoutLogAppender # 这里用的就是默认的 
+    #       #   levlel: debug
+    #       - type: RotatingFileLogAppender
+    #         level: info
+    #         pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
+    #         file: /home/yang/projects/webserver/tests_log/system/info/Rotating_log/
+    #         flush_rule: FFLUSH
+    #         max_size: 1000
+    #       - type: RotatingFileLogAppender
+    #         level: error
+    #         pattern: "%d{%Y-%m-%d %H:%M:%S} %t %F [%p] [%c] %f:%l [%m]%n"
+    #         file: /home/yang/projects/webserver/tests_log/system/error/Rotating_log/
+    #         flush_rule: FFLUSH
+    #         max_size: 1000

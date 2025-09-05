@@ -27,6 +27,8 @@ include_directories(.)
 include_directories(/usr/local/include) 
 link_directories(/usr/local/lib)            # 一般安装后，include是头文件，lib是库文件
 
+# find_package(MySQLConnector REQUIRED) # 查找 MySQL Connector/C++
+
 set(LIB_SRC
     sylar/core/config/config.cc
     sylar/core/config/config_init.cc
@@ -44,7 +46,8 @@ set(LIB_SRC
     sylar/core/thread.cc
     sylar/core/util/util.cc
     sylar/core/worker.cc
-    sylar/core/util/env.cc
+    sylar/core/env.cc
+    sylar/core/daemon.cc
 
     sylar/net/bytearray.cc
     sylar/net/address.cc
@@ -64,6 +67,8 @@ set(LIB_SRC
     
     sylar/core/fcontext_asm/jump_x86_64_sysv_elf_gas.S
     sylar/core/fcontext_asm/make_x86_64_sysv_elf_gas.S
+
+    sylar/io/db/mysql.cc
     )
 
 add_library(sylar SHARED ${LIB_SRC})
@@ -74,6 +79,7 @@ set(LIBS
     yaml-cpp
     pthread
     dl
+    mysqlclient  
 )
 
 sylar_add_executable(test_log "tests/core/test_log.cc" sylar "${LIBS}")
@@ -88,6 +94,7 @@ sylar_add_executable(test_hook "tests/core/test_hook.cc" sylar "${LIBS}")
 sylar_add_executable(test_memorypool "tests/core/test_memorypool.cc" sylar "${LIBS}")
 sylar_add_executable(test_env "tests/core/test_env.cc" sylar "${LIBS}")
 sylar_add_executable(test_fiber_stack_overflow "tests/core/test_fiber_stack_overflow.cc" sylar "${LIBS}")
+sylar_add_executable(test_daemon "tests/core/test_daemon.cc" sylar "${LIBS}")
 
 sylar_add_executable(test_address "tests/net/test_address.cc" sylar "${LIBS}")
 sylar_add_executable(test_socket_tcp_server "tests/net/test_socket_tcp_server.cc" sylar "${LIBS}")

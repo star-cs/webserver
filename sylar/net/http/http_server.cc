@@ -44,6 +44,7 @@ void HttpServer::handleClient(Socket::ptr client){
         
         m_dispatch->handle(req, rsp, session);
         
+        // 发送rsp
         session->sendResponse(rsp);
 
         if(!m_isKeepalive || req->isClose()) {

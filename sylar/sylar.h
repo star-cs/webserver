@@ -13,7 +13,7 @@
 #include "sylar/core/timermanager.h"
 #include "sylar/core/memory/memorypool.h"
 #include "sylar/core/worker.h"
-#include "sylar/core/util/env.h"
+#include "sylar/core/env.h"
 #include "sylar/core/signal/signal.h"
 #include "sylar/net/address.h"
 #include "sylar/net/socket.h"
@@ -28,5 +28,7 @@
 #include "sylar/net/http/servlet.h"
 #include "sylar/net/http/http_connection.h"
 #include "sylar/net/uri.h"
+#include "sylar/core/daemon.h"
+#include "sylar/io/db/mysql.h"
 
 #endif

@@ -10,7 +10,8 @@
 #include <iostream>
 #include <boost/lexical_cast.hpp>
 
-namespace sylar {
+namespace sylar
+{
 
 /**
  * @brief 获取线程id
@@ -89,7 +90,8 @@ time_t Str2Time(const char *str, const char *format = "%Y-%m-%d %H:%M:%S");
 /**
  * @brief 文件系统操作类
  */
-class FSUtil {
+class FSUtil
+{
 public:
     /**
      * @brief 递归列举指定目录下所有指定后缀的常规文件，如果不指定后缀，则遍历所有文件，返回的文件名带路径
@@ -97,7 +99,8 @@ public:
      * @param[in] path 路径
      * @param[in] subfix 后缀名，比如 ".yml"
      */
-    static void ListAllFile(std::vector<std::string> &files, const std::string &path, const std::string &subfix);
+    static void ListAllFile(std::vector<std::string> &files, const std::string &path,
+                            const std::string &subfix);
 
     /**
      * @brief 创建路径，相当于mkdir -p
@@ -175,7 +178,8 @@ public:
      * @param[in] mode 打开方式
      * @return  是否打开成功
      */
-    static bool OpenForRead(std::ifstream &ifs, const std::string &filename, std::ios_base::openmode mode);
+    static bool OpenForRead(std::ifstream &ifs, const std::string &filename,
+                            std::ios_base::openmode mode);
 
     /**
      * @brief 以只写方式打开
@@ -184,13 +188,15 @@ public:
      * @param[in] mode 打开方式
      * @return  是否打开成功
      */
-    static bool OpenForWrite(std::ofstream &ofs, const std::string &filename, std::ios_base::openmode mode);
+    static bool OpenForWrite(std::ofstream &ofs, const std::string &filename,
+                             std::ios_base::openmode mode);
 };
 
-template<class V, class Map, class K>
-V GetParamValue(const Map& m, const K& k, const V& def = V()) {
+template <class V, class Map, class K>
+V GetParamValue(const Map &m, const K &k, const V &def = V())
+{
     auto it = m.find(k);
-    if(it == m.end()) {
+    if (it == m.end()) {
         return def;
     }
     try {
@@ -200,10 +206,11 @@ V GetParamValue(const Map& m, const K& k, const V& def = V()) {
     return def;
 }
 
-template<class V, class Map, class K>
-bool CheckGetParamValue(const Map& m, const K& k, V& v) {
+template <class V, class Map, class K>
+bool CheckGetParamValue(const Map &m, const K &k, V &v)
+{
     auto it = m.find(k);
-    if(it == m.end()) {
+    if (it == m.end()) {
         return false;
     }
     try {
@@ -217,7 +224,8 @@ bool CheckGetParamValue(const Map& m, const K& k, V& v) {
 /**
  * @brief 类型转换
  */
-class TypeUtil {
+class TypeUtil
+{
 public:
     /// 转字符，返回*str.begin()
     static int8_t ToChar(const std::string &str);
@@ -237,7 +245,8 @@ public:
  * @brief 获取T类型的类型字符串
  */
 template <class T>
-const char *TypeToName() {
+const char *TypeToName()
+{
     static const char *s_name = abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, nullptr);
     return s_name;
 }
@@ -245,17 +254,18 @@ const char *TypeToName() {
 /**
  * @brief 字符串辅助类
  */
-class StringUtil {
+class StringUtil
+{
 public:
     /**
      * @brief printf风格的字符串格式化，返回格式化后的string
      */
-    static std::string Format(const char* fmt, ...);
+    static std::string Format(const char *fmt, ...);
 
     /**
      * @brief vprintf风格的字符串格式化，返回格式化后的string
      */
-    static std::string Formatv(const char* fmt, va_list ap);
+    static std::string Formatv(const char *fmt, va_list ap);
 
     /**
      * @brief url编码
@@ -263,7 +273,7 @@ public:
      * @param[in] space_as_plus 是否将空格编码成+号，如果为false，则空格编码成%20
      * @return 编码后的字符串
      */
-    static std::string UrlEncode(const std::string& str, bool space_as_plus = true);
+    static std::string UrlEncode(const std::string &str, bool space_as_plus = true);
 
     /**
      * @brief url解码
@@ -271,7 +281,7 @@ public:
      * @param[in] space_as_plus 是否将+号解码为空格
      * @return 解析后的字符串
      */
-    static std::string UrlDecode(const std::string& str, bool space_as_plus = true);
+    static std::string UrlDecode(const std::string &str, bool space_as_plus = true);
 
     /**
      * @brief 移除字符串首尾的指定字符串
@@ -279,35 +289,42 @@ public:
      * @param[] delimit 待移除的字符串
      * @return  移除后的字符串
      */
-    static std::string Trim(const std::string& str, const std::string& delimit = " \t\r\n");
-    
+    static std::string Trim(const std::string &str, const std::string &delimit = " \t\r\n");
+
     /**
      * @brief 移除字符串首部的指定字符串
      * @param[] str 输入字符串
      * @param[] delimit 待移除的字符串
      * @return  移除后的字符串
      */
-    static std::string TrimLeft(const std::string& str, const std::string& delimit = " \t\r\n");
-    
+    static std::string TrimLeft(const std::string &str, const std::string &delimit = " \t\r\n");
+
     /**
      * @brief 移除字符尾部的指定字符串
      * @param[] str 输入字符串
      * @param[] delimit 待移除的字符串
      * @return  移除后的字符串
      */
-    static std::string TrimRight(const std::string& str, const std::string& delimit = " \t\r\n");
+    static std::string TrimRight(const std::string &str, const std::string &delimit = " \t\r\n");
 
     /**
      * @brief 宽字符串转字符串
      */
-    static std::string WStringToString(const std::wstring& ws);
+    static std::string WStringToString(const std::wstring &ws);
 
     /**
      * @brief 字符串转宽字符串
      */
-    static std::wstring StringToWString(const std::string& s);
-
+    static std::wstring StringToWString(const std::string &s);
 };
+
+// 
+template <class T>
+void nop(T *)
+{
+}
+
+
 
 } // namespace sylar
 
