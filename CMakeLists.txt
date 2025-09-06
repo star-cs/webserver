@@ -34,7 +34,10 @@ find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)
     include_directories(${OPENSSL_INCLUDE_DIR})
 endif()
-
+find_package(Protobuf)
+if(Protobuf_FOUND)
+    include_directories(${Protobuf_INCLUDE_DIRS})
+endif()
 
 set(LIB_SRC
     sylar/core/config/config.cc
@@ -55,6 +58,9 @@ set(LIB_SRC
     sylar/core/worker.cc
     sylar/core/env.cc
     sylar/core/daemon.cc
+    sylar/core/application.cc
+    sylar/core/module.cc
+    sylar/core/library.cc
 
     sylar/net/bytearray.cc
     sylar/net/address.cc
@@ -71,7 +77,8 @@ set(LIB_SRC
     sylar/net/http/http_server.cc
     sylar/net/uri.cc
     sylar/net/http/http_connection.cc
-    
+    sylar/net/protocol.cc
+
     sylar/core/fcontext_asm/jump_x86_64_sysv_elf_gas.S
     sylar/core/fcontext_asm/make_x86_64_sysv_elf_gas.S
 
@@ -81,8 +88,8 @@ set(LIB_SRC
     sylar/io/db/sqlite3.cc
 
     # sylar/io/util/crypto_util.cc 
-    sylar/io/util/hash_util.cc 
-    sylar/io/util/json_util.cc 
+    sylar/core/util/hash_util.cc 
+    sylar/core/util/json_util.cc 
     )
 
 add_library(sylar SHARED ${LIB_SRC})
@@ -95,6 +102,7 @@ set(LIBS
     yaml-cpp
     jsoncpp
     ${OPENSSL_LIBRARIES}
+    ${PROTOBUF_LIBRARIES}
     event
     hiredis_vip
     mysqlclient
@@ -102,32 +110,31 @@ set(LIBS
     tinyxml2
 )
 
-sylar_add_executable(test_log "tests/core/test_log.cc" sylar "${LIBS}")
-sylar_add_executable(test_config "tests/core/test_config.cc" sylar "${LIBS}")
-sylar_add_executable(test_thread "tests/core/test_thread.cc" sylar "${LIBS}")
-sylar_add_executable(test_util "tests/core/test_util.cc" sylar "${LIBS}")
-sylar_add_executable(test_fiber "tests/core/test_fiber.cc" sylar "${LIBS}")
-sylar_add_executable(test_scheduler "tests/core/test_scheduler.cc" sylar "${LIBS}")
-sylar_add_executable(test_iomanager "tests/core/test_iomanager.cc" sylar "${LIBS}")
-sylar_add_executable(test_timer "tests/core/test_timermanager.cc" sylar "${LIBS}")
-sylar_add_executable(test_hook "tests/core/test_hook.cc" sylar "${LIBS}")
-sylar_add_executable(test_memorypool "tests/core/test_memorypool.cc" sylar "${LIBS}")
-sylar_add_executable(test_env "tests/core/test_env.cc" sylar "${LIBS}")
-sylar_add_executable(test_fiber_stack_overflow "tests/core/test_fiber_stack_overflow.cc" sylar "${LIBS}")
-sylar_add_executable(test_daemon "tests/core/test_daemon.cc" sylar "${LIBS}")
+# sylar_add_executable(test_log "tests/core/test_log.cc" sylar "${LIBS}")
+# sylar_add_executable(test_config "tests/core/test_config.cc" sylar "${LIBS}")
+# sylar_add_executable(test_thread "tests/core/test_thread.cc" sylar "${LIBS}")
+# sylar_add_executable(test_util "tests/core/test_util.cc" sylar "${LIBS}")
+# sylar_add_executable(test_fiber "tests/core/test_fiber.cc" sylar "${LIBS}")
+# sylar_add_executable(test_scheduler "tests/core/test_scheduler.cc" sylar "${LIBS}")
+# sylar_add_executable(test_iomanager "tests/core/test_iomanager.cc" sylar "${LIBS}")
+# sylar_add_executable(test_timer "tests/core/test_timermanager.cc" sylar "${LIBS}")
+# sylar_add_executable(test_hook "tests/core/test_hook.cc" sylar "${LIBS}")
+# sylar_add_executable(test_memorypool "tests/core/test_memorypool.cc" sylar "${LIBS}")
+# sylar_add_executable(test_env "tests/core/test_env.cc" sylar "${LIBS}")
+# sylar_add_executable(test_fiber_stack_overflow "tests/core/test_fiber_stack_overflow.cc" sylar "${LIBS}")
+# sylar_add_executable(test_daemon "tests/core/test_daemon.cc" sylar "${LIBS}")
 
-sylar_add_executable(test_address "tests/net/test_address.cc" sylar "${LIBS}")
-sylar_add_executable(test_socket_tcp_server "tests/net/test_socket_tcp_server.cc" sylar "${LIBS}")
-sylar_add_executable(test_socket_tcp_client "tests/net/test_socket_tcp_client.cc" sylar "${LIBS}")
-sylar_add_executable(test_socket "tests/net/test_socket.cc" sylar "${LIBS}")
-sylar_add_executable(test_bytearray "tests/net/test_bytearray.cc" sylar "${LIBS}")
-sylar_add_executable(test_tcp_server "tests/net/test_tcp_server.cc" sylar "${LIBS}")
-sylar_add_executable(test_http_parser "tests/net/http/test_http_parser.cc" sylar "${LIBS}")
-sylar_add_executable(test_http_server "tests/net/http/test_http_server.cc" sylar "${LIBS}")
-sylar_add_executable(test_http_connection "tests/net/http/test_http_connection.cc" sylar "${LIBS}")
+# sylar_add_executable(test_address "tests/net/test_address.cc" sylar "${LIBS}")
+# sylar_add_executable(test_socket_tcp_server "tests/net/test_socket_tcp_server.cc" sylar "${LIBS}")
+# sylar_add_executable(test_socket_tcp_client "tests/net/test_socket_tcp_client.cc" sylar "${LIBS}")
+# sylar_add_executable(test_socket "tests/net/test_socket.cc" sylar "${LIBS}")
+# sylar_add_executable(test_bytearray "tests/net/test_bytearray.cc" sylar "${LIBS}")
+# sylar_add_executable(test_tcp_server "tests/net/test_tcp_server.cc" sylar "${LIBS}")
+# sylar_add_executable(test_http_parser "tests/net/http/test_http_parser.cc" sylar "${LIBS}")
+# sylar_add_executable(test_http_server "tests/net/http/test_http_server.cc" sylar "${LIBS}")
+# sylar_add_executable(test_http_connection "tests/net/http/test_http_connection.cc" sylar "${LIBS}")
 
-
-sylar_add_executable(test_mysql "tests/io/test_mysql.cc" sylar "${LIBS}")
+# sylar_add_executable(test_mysql "tests/io/test_mysql.cc" sylar "${LIBS}")
 
 
 set(ORM_SRCS
@@ -139,10 +146,12 @@ set(ORM_SRCS
     )
 sylar_add_executable(orm "${ORM_SRCS}" sylar "${LIBS}")
 
+sylar_add_executable(bin_sylar "sylar/main.cc" sylar "${LIBS}")
+set_target_properties(bin_sylar PROPERTIES OUTPUT_NAME "sylar")
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/orm_out)
-set(OLIBS ${LIBS} orm_data)
-sylar_add_executable(test_orm "tests/io/test_orm.cc" orm_data "${OLIBS}")
+# add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/orm_out)
+# set(OLIBS ${LIBS} orm_data)
+# sylar_add_executable(test_orm "tests/io/test_orm.cc" orm_data "${OLIBS}")
 
 
 

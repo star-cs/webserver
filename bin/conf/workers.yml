@@ -1,7 +1,13 @@
 workers:
     io:
-      worker_num: 1
-      thread_num: 3
-    net:
-      worker_num: 1
-      thread_num: 3
+        thread_num: 8
+    http_io:
+        thread_num: 1
+    accept:
+        thread_num: 2
+    worker:
+        thread_num: 8
+    notify:
+        thread_num: 8
+    service_io:
+        thread_num: 4

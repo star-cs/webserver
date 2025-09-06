@@ -1,68 +1,41 @@
+#include "util.h"
+#include <cstdarg>
+#include <execinfo.h>
+#include <sys/time.h>
+#include <dirent.h>
 #include <unistd.h>
 #include <string.h>
-#include <time.h>
-#include <dirent.h>
-#include <signal.h> // for kill()
-#include <sys/syscall.h>
 #include <sys/stat.h>
-#include <execinfo.h> // for backtrace()
-#include <cxxabi.h>   // for abi::__cxa_demangle()
-#include <algorithm>  // for std::transform()
-#include <stdarg.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <google/protobuf/unknown_field_set.h>
 
-#include "sylar/core/util/util.h"
 #include "sylar/core/log/log.h"
 #include "sylar/core/fiber.h"
-#include "sylar/core/memory/memorypool.h"
 
-namespace sylar {
+namespace sylar
+{
 
 static sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 
-pid_t GetThreadId() {
+pid_t GetThreadId()
+{
     return syscall(SYS_gettid);
 }
 
-uint64_t GetFiberId() {
-    return Fiber::GetFiberId();
+uint32_t GetFiberId()
+{
+    return sylar::Fiber::GetFiberId();
 }
 
-uint64_t GetElapsedMS() {
-    struct timespec ts = {0};
-    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-    return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-}
-
-std::string GetThreadName() {
-    char thread_name[16] = {0};
-    pthread_getname_np(pthread_self(), thread_name, 16);
-    return std::string(thread_name);
-}
-
-void SetThreadName(const std::string &name) {
-    pthread_setname_np(pthread_self(), name.substr(0, 15).c_str());
-}
-
-/**
- * @brief 解析C++符号的混淆名称（demangle）
- * 
- * 该函数尝试解析两种格式的混淆符号：
- * 1. 包含在括号中的复杂符号（如类型信息）
- * 2. 简单的符号字符串
- * 
- * @param str 需要解析的混淆符号字符串指针
- * @return std::string 解析后的可读字符串，若解析失败返回原始字符串或简单符号
- */
-static std::string demangle(const char *str) {
+static std::string demangle(const char *str)
+{
     size_t size = 0;
-    int status  = 0;
+    int status = 0;
     std::string rt;
     rt.resize(256);
-
-    // 尝试解析带括号的复杂符号格式（如类型信息）
-    // 格式说明：跳过'('前内容，跳过'_'前内容，捕获到')'或'+'前的内容
     if (1 == sscanf(str, "%*[^(]%*[^_]%255[^)+]", &rt[0])) {
-        // 使用ABI函数进行demangle处理
         char *v = abi::__cxa_demangle(&rt[0], nullptr, &size, &status);
         if (v) {
             std::string result(v);
@@ -70,19 +43,16 @@ static std::string demangle(const char *str) {
             return result;
         }
     }
-
-    // 若复杂符号解析失败，尝试解析简单符号格式
     if (1 == sscanf(str, "%255s", &rt[0])) {
         return rt;
     }
-
-    // 完全解析失败时返回原始字符串
     return str;
 }
 
-void Backtrace(std::vector<std::string> &bt, int size, int skip) {
+void Backtrace(std::vector<std::string> &bt, int size, int skip)
+{
     void **array = (void **)malloc((sizeof(void *) * size));
-    size_t s     = ::backtrace(array, size);
+    size_t s = ::backtrace(array, size);
 
     char **strings = backtrace_symbols(array, s);
     if (strings == NULL) {
@@ -98,7 +68,8 @@ void Backtrace(std::vector<std::string> &bt, int size, int skip) {
     free(array);
 }
 
-std::string BacktraceToString(int size, int skip, const std::string &prefix) {
+std::string BacktraceToString(int size, int skip, const std::string &prefix)
+{
     std::vector<std::string> bt;
     Backtrace(bt, size, skip);
     std::stringstream ss;
@@ -108,31 +79,22 @@ std::string BacktraceToString(int size, int skip, const std::string &prefix) {
     return ss.str();
 }
 
-uint64_t GetCurrentMS() {
+uint64_t GetCurrentMS()
+{
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv.tv_sec * 1000ul + tv.tv_usec / 1000;
 }
 
-uint64_t GetCurrentUS() {
+uint64_t GetCurrentUS()
+{
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv.tv_sec * 1000 * 1000ul + tv.tv_usec;
 }
 
-std::string ToUpper(const std::string &name) {
-    std::string rt = name;
-    std::transform(rt.begin(), rt.end(), rt.begin(), ::toupper);
-    return rt;
-}
-
-std::string ToLower(const std::string &name) {
-    std::string rt = name;
-    std::transform(rt.begin(), rt.end(), rt.begin(), ::tolower);
-    return rt;
-}
-
-std::string Time2Str(time_t ts, const std::string &format) {
+std::string Time2Str(time_t ts, const std::string &format)
+{
     struct tm tm;
     localtime_r(&ts, &tm);
     char buf[64];
@@ -140,7 +102,8 @@ std::string Time2Str(time_t ts, const std::string &format) {
     return buf;
 }
 
-time_t Str2Time(const char *str, const char *format) {
+time_t Str2Time(const char *str, const char *format)
+{
     struct tm t;
     memset(&t, 0, sizeof(t));
     if (!strptime(str, format, &t)) {
@@ -149,8 +112,23 @@ time_t Str2Time(const char *str, const char *format) {
     return mktime(&t);
 }
 
-/// ******************************** FSUtil ********************************
-void FSUtil::ListAllFile(std::vector<std::string> &files, const std::string &path, const std::string &subfix) {
+std::string ToUpper(const std::string &name)
+{
+    std::string rt = name;
+    std::transform(rt.begin(), rt.end(), rt.begin(), ::toupper);
+    return rt;
+}
+
+std::string ToLower(const std::string &name)
+{
+    std::string rt = name;
+    std::transform(rt.begin(), rt.end(), rt.begin(), ::tolower);
+    return rt;
+}
+
+void FSUtil::ListAllFile(std::vector<std::string> &files, const std::string &path,
+                         const std::string &subfix)
+{
     if (access(path.c_str(), 0) != 0) {
         return;
     }
@@ -182,7 +160,8 @@ void FSUtil::ListAllFile(std::vector<std::string> &files, const std::string &pat
     closedir(dir);
 }
 
-static int __lstat(const char *file, struct stat *st = nullptr) {
+static int __lstat(const char *file, struct stat *st = nullptr)
+{
     struct stat lst;
     int ret = lstat(file, &lst);
     if (st) {
@@ -191,19 +170,21 @@ static int __lstat(const char *file, struct stat *st = nullptr) {
     return ret;
 }
 
-static int __mkdir(const char *dirname) {
+static int __mkdir(const char *dirname)
+{
     if (access(dirname, F_OK) == 0) {
         return 0;
     }
     return mkdir(dirname, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 }
 
-bool FSUtil::Mkdir(const std::string &dirname) {
+bool FSUtil::Mkdir(const std::string &dirname)
+{
     if (__lstat(dirname.c_str()) == 0) {
         return true;
     }
     char *path = strdup(dirname.c_str());
-    char *ptr  = strchr(path + 1, '/');
+    char *ptr = strchr(path + 1, '/');
     do {
         for (; ptr; *ptr = '/', ptr = strchr(ptr + 1, '/')) {
             *ptr = '\0';
@@ -223,7 +204,8 @@ bool FSUtil::Mkdir(const std::string &dirname) {
     return false;
 }
 
-bool FSUtil::IsRunningPidfile(const std::string &pidfile) {
+bool FSUtil::IsRunningPidfile(const std::string &pidfile)
+{
     if (__lstat(pidfile.c_str()) != 0) {
         return false;
     }
@@ -245,14 +227,16 @@ bool FSUtil::IsRunningPidfile(const std::string &pidfile) {
     return true;
 }
 
-bool FSUtil::Unlink(const std::string &filename, bool exist) {
+bool FSUtil::Unlink(const std::string &filename, bool exist)
+{
     if (!exist && __lstat(filename.c_str())) {
         return true;
     }
     return ::unlink(filename.c_str()) == 0;
 }
 
-bool FSUtil::Rm(const std::string &path) {
+bool FSUtil::Rm(const std::string &path)
+{
     struct stat st;
     if (lstat(path.c_str(), &st)) {
         return true;
@@ -266,14 +250,14 @@ bool FSUtil::Rm(const std::string &path) {
         return false;
     }
 
-    bool ret          = true;
+    bool ret = true;
     struct dirent *dp = nullptr;
     while ((dp = readdir(dir))) {
         if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")) {
             continue;
         }
         std::string dirname = path + "/" + dp->d_name;
-        ret                 = Rm(dirname);
+        ret = Rm(dirname);
     }
     closedir(dir);
     if (::rmdir(path.c_str())) {
@@ -282,14 +266,16 @@ bool FSUtil::Rm(const std::string &path) {
     return ret;
 }
 
-bool FSUtil::Mv(const std::string &from, const std::string &to) {
+bool FSUtil::Mv(const std::string &from, const std::string &to)
+{
     if (!Rm(to)) {
         return false;
     }
     return rename(from.c_str(), to.c_str()) == 0;
 }
 
-bool FSUtil::Realpath(const std::string &path, std::string &rpath) {
+bool FSUtil::Realpath(const std::string &path, std::string &rpath)
+{
     if (__lstat(path.c_str())) {
         return false;
     }
@@ -302,14 +288,16 @@ bool FSUtil::Realpath(const std::string &path, std::string &rpath) {
     return true;
 }
 
-bool FSUtil::Symlink(const std::string &from, const std::string &to) {
+bool FSUtil::Symlink(const std::string &from, const std::string &to)
+{
     if (!Rm(to)) {
         return false;
     }
     return ::symlink(from.c_str(), to.c_str()) == 0;
 }
 
-std::string FSUtil::Dirname(const std::string &filename) {
+std::string FSUtil::Dirname(const std::string &filename)
+{
     if (filename.empty()) {
         return ".";
     }
@@ -323,7 +311,8 @@ std::string FSUtil::Dirname(const std::string &filename) {
     }
 }
 
-std::string FSUtil::Basename(const std::string &filename) {
+std::string FSUtil::Basename(const std::string &filename)
+{
     if (filename.empty()) {
         return filename;
     }
@@ -335,12 +324,16 @@ std::string FSUtil::Basename(const std::string &filename) {
     }
 }
 
-bool FSUtil::OpenForRead(std::ifstream &ifs, const std::string &filename, std::ios_base::openmode mode) {
+bool FSUtil::OpenForRead(std::ifstream &ifs, const std::string &filename,
+                         std::ios_base::openmode mode)
+{
     ifs.open(filename.c_str(), mode);
     return ifs.is_open();
 }
 
-bool FSUtil::OpenForWrite(std::ofstream &ofs, const std::string &filename, std::ios_base::openmode mode) {
+bool FSUtil::OpenForWrite(std::ofstream &ofs, const std::string &filename,
+                          std::ios_base::openmode mode)
+{
     ofs.open(filename.c_str(), mode);
     if (!ofs.is_open()) {
         std::string dir = Dirname(filename);
@@ -350,52 +343,56 @@ bool FSUtil::OpenForWrite(std::ofstream &ofs, const std::string &filename, std::
     return ofs.is_open();
 }
 
-
-/// ******************************** TypeUtil ********************************
-
-int8_t TypeUtil::ToChar(const std::string &str) {
+int8_t TypeUtil::ToChar(const std::string &str)
+{
     if (str.empty()) {
         return 0;
     }
     return *str.begin();
 }
 
-int64_t TypeUtil::Atoi(const std::string &str) {
+int64_t TypeUtil::Atoi(const std::string &str)
+{
     if (str.empty()) {
         return 0;
     }
     return strtoull(str.c_str(), nullptr, 10);
 }
 
-double TypeUtil::Atof(const std::string &str) {
+double TypeUtil::Atof(const std::string &str)
+{
     if (str.empty()) {
         return 0;
     }
     return atof(str.c_str());
 }
 
-int8_t TypeUtil::ToChar(const char *str) {
+int8_t TypeUtil::ToChar(const char *str)
+{
     if (str == nullptr) {
         return 0;
     }
     return str[0];
 }
 
-int64_t TypeUtil::Atoi(const char *str) {
+int64_t TypeUtil::Atoi(const char *str)
+{
     if (str == nullptr) {
         return 0;
     }
     return strtoull(str, nullptr, 10);
 }
 
-double TypeUtil::Atof(const char *str) {
+double TypeUtil::Atof(const char *str)
+{
     if (str == nullptr) {
         return 0;
     }
     return atof(str);
 }
 
-std::string StringUtil::Format(const char* fmt, ...) {
+std::string StringUtil::Format(const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     auto v = Formatv(fmt, ap);
@@ -403,10 +400,11 @@ std::string StringUtil::Format(const char* fmt, ...) {
     return v;
 }
 
-std::string StringUtil::Formatv(const char* fmt, va_list ap) {
-    char* buf = nullptr;
+std::string StringUtil::Formatv(const char *fmt, va_list ap)
+{
+    char *buf = nullptr;
     auto len = vasprintf(&buf, fmt, ap);
-    if(len == -1) {
+    if (len == -1) {
         return "";
     }
     std::string ret(buf, len);
@@ -416,228 +414,735 @@ std::string StringUtil::Formatv(const char* fmt, va_list ap) {
 
 static const char uri_chars[256] = {
     /* 0 */
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 1, 1, 0,
-    1, 1, 1, 1, 1, 1, 1, 1,   1, 1, 0, 0, 0, 1, 0, 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
     /* 64 */
-    0, 1, 1, 1, 1, 1, 1, 1,   1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,   1, 1, 1, 0, 0, 0, 0, 1,
-    0, 1, 1, 1, 1, 1, 1, 1,   1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,   1, 1, 1, 0, 0, 0, 1, 0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
     /* 128 */
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
     /* 192 */
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
 };
 
 static const char xdigit_chars[256] = {
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,1,2,3,4,5,6,7,8,9,0,0,0,0,0,0,
-    0,10,11,12,13,14,15,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,10,11,12,13,14,15,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    0, 0, 0, 0, 0, 0, 0, 10, 11, 12, 13, 14, 15, 0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-#define CHAR_IS_UNRESERVED(c)           \
-    (uri_chars[(unsigned char)(c)])
+#define CHAR_IS_UNRESERVED(c) (uri_chars[(unsigned char)(c)])
 
 //-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~
-/**
- * UrlEncode函数用于将字符串进行URL编码
- * 
- * @param str 需要进行URL编码的字符串
- * @param space_as_plus 指定空格是否编码为加号，为false时空格编码为%20
- * @return 返回URL编码后的字符串
- * 
- * 本函数通过遍历输入字符串，对非保留字符进行编码非保留字符被编码为%加上其ASCII码的十六进制表示
- * 空格的编码方式由space_as_plus参数决定，为true时编码为加号，否则编码为%20
- * 为了提高效率，只有当遇到需要编码的字符时，才会创建新的字符串对象进行编码
- */
-std::string StringUtil::UrlEncode(const std::string& str, bool space_as_plus) {
-    // 定义十六进制数字字符，用于字符编码
+std::string StringUtil::UrlEncode(const std::string &str, bool space_as_plus)
+{
     static const char *hexdigits = "0123456789ABCDEF";
-    // 初始化字符串流指针，用于构建编码后的字符串
-    std::string* ss = nullptr;
-    // 获取字符串末尾位置，用于遍历
-    const char* end = str.c_str() + str.length();
-    // 遍历字符串中的每个字符
-    for(const char* c = str.c_str() ; c < end; ++c) {
-        // 检查字符是否需要编码
-        if(!CHAR_IS_UNRESERVED(*c)) {
-            // 如果尚未创建字符串流，则进行初始化，并预留足够空间
-            if(!ss) {
+    std::string *ss = nullptr;
+    const char *end = str.c_str() + str.length();
+    for (const char *c = str.c_str(); c < end; ++c) {
+        if (!CHAR_IS_UNRESERVED(*c)) {
+            if (!ss) {
                 ss = new std::string;
                 ss->reserve(str.size() * 1.2);
-                // 将之前未编码的字符添加到字符串流中
                 ss->append(str.c_str(), c - str.c_str());
             }
-            // 空格的编码方式由space_as_plus参数决定
-            if(*c == ' ' && space_as_plus) {
+            if (*c == ' ' && space_as_plus) {
                 ss->append(1, '+');
             } else {
-                // 对非保留字符进行编码
                 ss->append(1, '%');
                 ss->append(1, hexdigits[(uint8_t)*c >> 4]);
                 ss->append(1, hexdigits[*c & 0xf]);
             }
-        } else if(ss) {
-            // 如果当前字符是保留字符且已经创建了字符串流，则直接添加到字符串流中
+        } else if (ss) {
             ss->append(1, *c);
         }
     }
-    // 如果没有进行任何编码，直接返回原始字符串
-    if(!ss) {
+    if (!ss) {
         return str;
     } else {
-        // 如果进行了编码，创建最终的字符串结果，并释放内存
         std::string rt = *ss;
         delete ss;
         return rt;
     }
 }
 
-/**
- * UrlDecode函数用于解码URL中的字符串。
- * 它会将URL中的加号替换为空格（如果space_as_plus为true），并将百分号编码的字符转换回原始字符。
- * 
- * @param str 待解码的URL字符串。
- * @param space_as_plus 指示是否将加号解码为单个空格。如果为false，加号将保持不变。
- * @return 解码后的字符串。
- */
-std::string StringUtil::UrlDecode(const std::string& str, bool space_as_plus) {
-    // 指向正在构建的解码字符串的指针，初始为nullptr，因为在开始时我们不知道是否需要解码。
-    std::string* ss = nullptr;
-    
-    // 获取字符串的末尾位置，用于边界检查。
-    const char* end = str.c_str() + str.length();
-    
-    // 遍历输入字符串的每个字符。
-    for(const char* c = str.c_str(); c < end; ++c) {
-        // 如果当前字符是加号且space_as_plus为true，将其解码为单个空格。
-        if(*c == '+' && space_as_plus) {
-            // 如果ss为空，说明这是第一次需要解码，我们创建一个新的字符串并添加之前遍历过的字符。
-            if(!ss) {
+std::string StringUtil::UrlDecode(const std::string &str, bool space_as_plus)
+{
+    std::string *ss = nullptr;
+    const char *end = str.c_str() + str.length();
+    for (const char *c = str.c_str(); c < end; ++c) {
+        if (*c == '+' && space_as_plus) {
+            if (!ss) {
                 ss = new std::string;
                 ss->append(str.c_str(), c - str.c_str());
             }
-            // 添加单个空格到解码字符串中。
             ss->append(1, ' ');
-        } 
-        // 如果当前字符是百分号且后面有两个十六进制数字，将其解码为对应的字符。
-        else if(*c == '%' && (c + 2) < end
-                    && isxdigit(*(c + 1)) && isxdigit(*(c + 2))){
-            // 同样，如果ss为空，创建一个新的字符串并添加之前遍历过的字符。
-            if(!ss) {
+        } else if (*c == '%' && (c + 2) < end && isxdigit(*(c + 1)) && isxdigit(*(c + 2))) {
+            if (!ss) {
                 ss = new std::string;
                 ss->append(str.c_str(), c - str.c_str());
             }
-            // 将百分号编码的字符转换回原始字符。
             ss->append(1, (char)(xdigit_chars[(int)*(c + 1)] << 4 | xdigit_chars[(int)*(c + 2)]));
-            // 跳过已经处理过的两个十六进制数字。
             c += 2;
-        } 
-        // 如果已经有解码操作发生（即ss不为空），将当前字符添加到解码字符串中。
-        else if(ss) {
+        } else if (ss) {
             ss->append(1, *c);
         }
     }
-    // 如果没有进行任何解码操作，直接返回原始字符串。
-    if(!ss) {
+    if (!ss) {
         return str;
-    } 
-    // 否则，返回解码后的字符串，并释放分配的内存。
-    else {
+    } else {
         std::string rt = *ss;
         delete ss;
         return rt;
     }
 }
 
-/**
- * @brief 字符串修剪函数
- * 
- * 该函数用于移除字符串str两端包含的delimit指定的字符。如果str的两端存在delimit中指定的字符，
- * 则从字符串两端删除这些字符，直到遇到第一个不属于delimit的字符为止。
- * 
- * @param str 待处理的字符串
- * @param delimit 需要移除的字符集合
- * @return std::string 返回修剪后的字符串
- */
-std::string StringUtil::Trim(const std::string& str, const std::string& delimit) {
-    // 查找字符串中第一个不属于delimit的字符位置
+std::string StringUtil::Trim(const std::string &str, const std::string &delimit)
+{
     auto begin = str.find_first_not_of(delimit);
-    // 如果整个字符串都由delimit中的字符组成，则返回空字符串
-    if(begin == std::string::npos) {
+    if (begin == std::string::npos) {
         return "";
     }
-    // 查找字符串中最后一个不属于delimit的字符位置
     auto end = str.find_last_not_of(delimit);
-    // 提取并返回从第一个非delimit字符到最后一个非delimit字符之间的子字符串
     return str.substr(begin, end - begin + 1);
 }
 
-std::string StringUtil::TrimLeft(const std::string& str, const std::string& delimit) {
+std::string StringUtil::TrimLeft(const std::string &str, const std::string &delimit)
+{
     auto begin = str.find_first_not_of(delimit);
-    if(begin == std::string::npos) {
+    if (begin == std::string::npos) {
         return "";
     }
     return str.substr(begin);
 }
 
-std::string StringUtil::TrimRight(const std::string& str, const std::string& delimit) {
+std::string StringUtil::TrimRight(const std::string &str, const std::string &delimit)
+{
     auto end = str.find_last_not_of(delimit);
-    if(end == std::string::npos) {
+    if (end == std::string::npos) {
         return "";
     }
     return str.substr(0, end);
 }
 
-std::string StringUtil::WStringToString(const std::wstring& ws) {
+std::string StringUtil::WStringToString(const std::wstring &ws)
+{
     std::string str_locale = setlocale(LC_ALL, "");
-    const wchar_t* wch_src = ws.c_str();
+    const wchar_t *wch_src = ws.c_str();
     size_t n_dest_size = wcstombs(NULL, wch_src, 0) + 1;
-    char *ch_dest = (char*)SYLAR_THREAD_MALLOC(n_dest_size);
-    memset(ch_dest,0,n_dest_size);
-    wcstombs(ch_dest,wch_src,n_dest_size);
+    char *ch_dest = new char[n_dest_size];
+    memset(ch_dest, 0, n_dest_size);
+    wcstombs(ch_dest, wch_src, n_dest_size);
     std::string str_result = ch_dest;
-    SYLAR_THREAD_FREE(ch_dest, n_dest_size);
+    delete[] ch_dest;
     setlocale(LC_ALL, str_locale.c_str());
     return str_result;
 }
 
-std::wstring StringUtil::StringToWString(const std::string& s) {
+std::wstring StringUtil::StringToWString(const std::string &s)
+{
     std::string str_locale = setlocale(LC_ALL, "");
-    const char* chSrc = s.c_str();
+    const char *chSrc = s.c_str();
     size_t n_dest_size = mbstowcs(NULL, chSrc, 0) + 1;
-    wchar_t* wch_dest = new wchar_t[n_dest_size];
+    wchar_t *wch_dest = new wchar_t[n_dest_size];
     wmemset(wch_dest, 0, n_dest_size);
-    mbstowcs(wch_dest,chSrc,n_dest_size);
+    mbstowcs(wch_dest, chSrc, n_dest_size);
     std::wstring wstr_result = wch_dest;
-    delete []wch_dest;
+    delete[] wch_dest;
     setlocale(LC_ALL, str_locale.c_str());
     return wstr_result;
 }
 
+std::string GetHostName()
+{
+    std::shared_ptr<char> host(new char[512], sylar::delete_array<char>);
+    memset(host.get(), 0, 512);
+    gethostname(host.get(), 511);
+    return host.get();
+}
 
+in_addr_t GetIPv4Inet()
+{
+    struct ifaddrs *ifas = nullptr;
+    struct ifaddrs *ifa = nullptr;
 
+    in_addr_t localhost = inet_addr("127.0.0.1");
+    if (getifaddrs(&ifas)) {
+        SYLAR_LOG_ERROR(g_logger) << "getifaddrs errno=" << errno << " errstr=" << strerror(errno);
+        return localhost;
+    }
 
+    in_addr_t ipv4 = localhost;
+
+    for (ifa = ifas; ifa && ifa->ifa_addr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr->sa_family != AF_INET) {
+            continue;
+        }
+        if (!strncasecmp(ifa->ifa_name, "lo", 2)) {
+            continue;
+        }
+        ipv4 = ((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr;
+        if (ipv4 == localhost) {
+            continue;
+        }
+    }
+    if (ifas != nullptr) {
+        freeifaddrs(ifas);
+    }
+    return ipv4;
+}
+
+std::string _GetIPv4()
+{
+    std::shared_ptr<char> ipv4(new char[INET_ADDRSTRLEN], sylar::delete_array<char>);
+    memset(ipv4.get(), 0, INET_ADDRSTRLEN);
+    auto ia = GetIPv4Inet();
+    inet_ntop(AF_INET, &ia, ipv4.get(), INET_ADDRSTRLEN);
+    return ipv4.get();
+}
+
+std::string GetIPv4()
+{
+    static const std::string ip = _GetIPv4();
+    return ip;
+}
+
+bool YamlToJson(const YAML::Node &ynode, Json::Value &jnode)
+{
+    try {
+        if (ynode.IsScalar()) {
+            Json::Value v(ynode.Scalar());
+            jnode.swapPayload(v);
+            return true;
+        }
+        if (ynode.IsSequence()) {
+            for (size_t i = 0; i < ynode.size(); ++i) {
+                Json::Value v;
+                if (YamlToJson(ynode[i], v)) {
+                    jnode.append(v);
+                } else {
+                    return false;
+                }
+            }
+        } else if (ynode.IsMap()) {
+            for (auto it = ynode.begin(); it != ynode.end(); ++it) {
+                Json::Value v;
+                if (YamlToJson(it->second, v)) {
+                    jnode[it->first.Scalar()] = v;
+                } else {
+                    return false;
+                }
+            }
+        }
+    } catch (...) {
+        return false;
+    }
+    return true;
+}
+
+bool JsonToYaml(const Json::Value &jnode, YAML::Node &ynode)
+{
+    try {
+        if (jnode.isArray()) {
+            for (int i = 0; i < (int)jnode.size(); ++i) {
+                YAML::Node n;
+                if (JsonToYaml(jnode[i], n)) {
+                    ynode.push_back(n);
+                } else {
+                    return false;
+                }
+            }
+        } else if (jnode.isObject()) {
+            for (auto it = jnode.begin(); it != jnode.end(); ++it) {
+                YAML::Node n;
+                if (JsonToYaml(*it, n)) {
+                    ynode[it.name()] = n;
+                } else {
+                    return false;
+                }
+            }
+        } else {
+            ynode = jnode.asString();
+        }
+    } catch (...) {
+        return false;
+    }
+    return true;
+}
+
+static void serialize_unknowfieldset(const google::protobuf::UnknownFieldSet &ufs,
+                                     Json::Value &jnode)
+{
+    std::map<int, std::vector<Json::Value> > kvs;
+    for (int i = 0; i < ufs.field_count(); ++i) {
+        const auto &uf = ufs.field(i);
+        switch ((int)uf.type()) {
+            case google::protobuf::UnknownField::TYPE_VARINT:
+                kvs[uf.number()].push_back((Json::Int64)uf.varint());
+                break;
+            case google::protobuf::UnknownField::TYPE_FIXED32:
+                kvs[uf.number()].push_back((Json::UInt)uf.fixed32());
+                break;
+            case google::protobuf::UnknownField::TYPE_FIXED64:
+                kvs[uf.number()].push_back((Json::UInt64)uf.fixed64());
+                break;
+            case google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED:
+                google::protobuf::UnknownFieldSet tmp;
+                auto &v = uf.length_delimited();
+                if (!v.empty() && tmp.ParseFromString(v)) {
+                    Json::Value vv;
+                    serialize_unknowfieldset(tmp, vv);
+                    kvs[uf.number()].push_back(vv);
+                } else {
+                    kvs[uf.number()].push_back(v);
+                }
+                break;
+        }
+    }
+
+    for (auto &i : kvs) {
+        if (i.second.size() > 1) {
+            for (auto &n : i.second) {
+                jnode[std::to_string(i.first)].append(n);
+            }
+        } else {
+            jnode[std::to_string(i.first)] = i.second[0];
+        }
+    }
+}
+
+static void serialize_message(const google::protobuf::Message &message, Json::Value &jnode)
+{
+    const google::protobuf::Descriptor *descriptor = message.GetDescriptor();
+    const google::protobuf::Reflection *reflection = message.GetReflection();
+
+    for (int i = 0; i < descriptor->field_count(); ++i) {
+        const google::protobuf::FieldDescriptor *field = descriptor->field(i);
+
+        if (field->is_repeated()) {
+            if (!reflection->FieldSize(message, field)) {
+                continue;
+            }
+        } else {
+            if (!reflection->HasField(message, field)) {
+                continue;
+            }
+        }
+
+        if (field->is_repeated()) {
+            switch (field->cpp_type()) {
+#define XX(cpptype, method, valuetype, jsontype)                                                   \
+    case google::protobuf::FieldDescriptor::CPPTYPE_##cpptype: {                                   \
+        int size = reflection->FieldSize(message, field);                                          \
+        for (int n = 0; n < size; ++n) {                                                           \
+            jnode[field->name()].append(                                                           \
+                (jsontype)reflection->GetRepeated##method(message, field, n));                     \
+        }                                                                                          \
+        break;                                                                                     \
+    }
+                XX(INT32, Int32, int32_t, Json::Int);
+                XX(UINT32, UInt32, uint32_t, Json::UInt);
+                XX(FLOAT, Float, float, double);
+                XX(DOUBLE, Double, double, double);
+                XX(BOOL, Bool, bool, bool);
+                XX(INT64, Int64, int64_t, Json::Int64);
+                XX(UINT64, UInt64, uint64_t, Json::UInt64);
+#undef XX
+                case google::protobuf::FieldDescriptor::CPPTYPE_ENUM: {
+                    int size = reflection->FieldSize(message, field);
+                    for (int n = 0; n < size; ++n) {
+                        jnode[field->name()].append(
+                            reflection->GetRepeatedEnum(message, field, n)->number());
+                    }
+                    break;
+                }
+                case google::protobuf::FieldDescriptor::CPPTYPE_STRING: {
+                    int size = reflection->FieldSize(message, field);
+                    for (int n = 0; n < size; ++n) {
+                        jnode[field->name()].append(
+                            reflection->GetRepeatedString(message, field, n));
+                    }
+                    break;
+                }
+                case google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE: {
+                    int size = reflection->FieldSize(message, field);
+                    for (int n = 0; n < size; ++n) {
+                        Json::Value vv;
+                        serialize_message(reflection->GetRepeatedMessage(message, field, n), vv);
+                        jnode[field->name()].append(vv);
+                    }
+                    break;
+                }
+            }
+            continue;
+        }
+
+        switch (field->cpp_type()) {
+#define XX(cpptype, method, valuetype, jsontype)                                                   \
+    case google::protobuf::FieldDescriptor::CPPTYPE_##cpptype: {                                   \
+        jnode[field->name()] = (jsontype)reflection->Get##method(message, field);                  \
+        break;                                                                                     \
+    }
+            XX(INT32, Int32, int32_t, Json::Int);
+            XX(UINT32, UInt32, uint32_t, Json::UInt);
+            XX(FLOAT, Float, float, double);
+            XX(DOUBLE, Double, double, double);
+            XX(BOOL, Bool, bool, bool);
+            XX(INT64, Int64, int64_t, Json::Int64);
+            XX(UINT64, UInt64, uint64_t, Json::UInt64);
+#undef XX
+            case google::protobuf::FieldDescriptor::CPPTYPE_ENUM: {
+                jnode[field->name()] = reflection->GetEnum(message, field)->number();
+                break;
+            }
+            case google::protobuf::FieldDescriptor::CPPTYPE_STRING: {
+                jnode[field->name()] = reflection->GetString(message, field);
+                break;
+            }
+            case google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE: {
+                serialize_message(reflection->GetMessage(message, field), jnode[field->name()]);
+                break;
+            }
+        }
+    }
+
+    const auto &ufs = reflection->GetUnknownFields(message);
+    serialize_unknowfieldset(ufs, jnode);
+}
+
+std::string PBToJsonString(const google::protobuf::Message &message)
+{
+    Json::Value jnode;
+    serialize_message(message, jnode);
+    return sylar::JsonUtil::ToString(jnode);
+}
+
+SpeedLimit::SpeedLimit(uint32_t speed) : m_speed(speed), m_countPerMS(0), m_curCount(0), m_curSec(0)
+{
+    if (speed == 0) {
+        m_speed = (uint32_t)-1;
+    }
+    m_countPerMS = m_speed / 1000.0;
+}
+
+void SpeedLimit::add(uint32_t v)
+{
+    uint64_t curms = sylar::GetCurrentMS();
+    if (curms / 1000 != m_curSec) {
+        m_curSec = curms / 1000;
+        m_curCount = v;
+        return;
+    }
+
+    m_curCount += v;
+
+    int usedms = curms % 1000;
+    int limitms = m_curCount / m_countPerMS;
+
+    if (usedms < limitms) {
+        usleep(1000 * (limitms - usedms));
+    }
+}
+
+bool ReadFixFromStreamWithSpeed(std::istream &is, char *data, const uint64_t &size,
+                                const uint64_t &speed)
+{
+    SpeedLimit::ptr limit;
+    if (dynamic_cast<std::ifstream *>(&is)) {
+        limit.reset(new SpeedLimit(speed));
+    }
+
+    uint64_t offset = 0;
+    uint64_t per = std::max((uint64_t)ceil(speed / 100.0), (uint64_t)1024 * 64);
+    while (is && (offset < size)) {
+        uint64_t s = size - offset > per ? per : size - offset;
+        is.read(data + offset, s);
+        offset += is.gcount();
+
+        if (limit) {
+            limit->add(is.gcount());
+        }
+    }
+    return offset == size;
+}
+
+bool WriteFixToStreamWithSpeed(std::ostream &os, const char *data, const uint64_t &size,
+                               const uint64_t &speed)
+{
+    SpeedLimit::ptr limit;
+    if (dynamic_cast<std::ofstream *>(&os)) {
+        limit.reset(new SpeedLimit(speed));
+    }
+
+    uint64_t offset = 0;
+    uint64_t per = std::max((uint64_t)ceil(speed / 100.0), (uint64_t)1024 * 64);
+    while (os && (offset < size)) {
+        uint64_t s = size - offset > per ? per : size - offset;
+        os.write(data + offset, s);
+        offset += s;
+
+        if (limit) {
+            limit->add(s);
+        }
+    }
+
+    return offset == size;
+}
 
 } // namespace sylar

@@ -107,5 +107,9 @@ sudo apt-get install sqlite3
 ../bin/orm ../bin/orm_conf/ ../orm_out
 ```
 
+# ZK
+```bash
+sudo apt install zookeeper zookeeperd
+```
 
 # 路漫漫其修远兮，吾将上下而求索

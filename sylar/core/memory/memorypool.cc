@@ -36,10 +36,10 @@ bool ProtectStack(void *ptr, std::size_t size)
                             ptr, protect_page_addr, getpagesize(), pageSize, strerror(errno));
         return false;
     } else {
-        SYLAR_LOG_FMT_DEBUG(
-            g_logger,
-            "origin_addr:%p, align_addr:%p, page_size:%d, protect_page:%u, protect stack success.",
-            ptr, protect_page_addr, pageSize, getpagesize());
+        // SYLAR_LOG_FMT_DEBUG(
+        //     g_logger,
+        //     "origin_addr:%p, align_addr:%p, page_size:%d, protect_page:%u, protect stack success.",
+        //     ptr, protect_page_addr, pageSize, getpagesize());
         return true;
     }
 }
@@ -59,10 +59,10 @@ void UnprotectStack(void *ptr)
                             "stack stack error: %s",
                             ptr, protect_page_addr, getpagesize(), pageSize, strerror(errno));
     } else {
-        SYLAR_LOG_FMT_DEBUG(g_logger,
-                            "origin_addr:%p, align_addr:%p, page_size:%d, protect_page:%u, "
-                            "unprotect stack success.",
-                            ptr, protect_page_addr, pageSize, getpagesize());
+        // SYLAR_LOG_FMT_DEBUG(g_logger,
+        //                     "origin_addr:%p, align_addr:%p, page_size:%d, protect_page:%u, "
+        //                     "unprotect stack success.",
+        //                     ptr, protect_page_addr, pageSize, getpagesize());
     }
 }
 

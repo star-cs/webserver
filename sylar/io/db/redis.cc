@@ -1,5 +1,5 @@
 #include "redis.h"
-#include "sylar/io/util/hash_util.h"
+#include "sylar/core/util/hash_util.h"
 #include "sylar/sylar.h"
 
 namespace sylar

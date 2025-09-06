@@ -374,7 +374,7 @@ bool IOManager::stopping(uint64_t& next_timeout){
  * 2. 关注当前注册的所有IO事件有没有触发，如果有触发，那就执行 ~  IO事件对应的 回调函数
  */
 void IOManager::idle(){
-    SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle() started";
+    // SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle() started";
 
     // 一次epoll_wait最多检测 256 个就绪事件
     const uint64_t MAX_EVENTS = 256;
@@ -390,7 +390,7 @@ void IOManager::idle(){
         // 获取下一个定时器的超时事件，顺便判断调度器是否停止。
         uint64_t next_timeout = 0;
         if(stopping(next_timeout)){
-            SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle() stopping, name=" << getName();
+            // SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle() stopping, name=" << getName();
             break;
         }
         int rt = 0;
@@ -505,7 +505,7 @@ void IOManager::idle(){
         
     } // end while(true)
 
-    SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle() exited";
+    // SYLAR_LOG_DEBUG(g_logger) << "IOManager::idle() exited";
 }
 
 void IOManager::onTimerInsertedAtFront(){

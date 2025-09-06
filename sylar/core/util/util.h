@@ -1,193 +1,95 @@
+/**
+ * @file util.h
+ * @brief 常用的工具函数
+ * @author sylar.yin
+ * @email 564628276@qq.com
+ * @date 2019-05-27
+ * @copyright Copyright (c) 2019年 sylar.yin All rights reserved (www.sylar.top)
+ */
 #ifndef __SYLAR_UTIL_H__
 #define __SYLAR_UTIL_H__
 
+#include <cxxabi.h>
+#include <pthread.h>
+#include <unistd.h>
 #include <sys/types.h>
+#include <sys/syscall.h>
+#include <stdio.h>
 #include <stdint.h>
-#include <sys/time.h>
-#include <cxxabi.h> // for abi::__cxa_demangle()
-#include <string>
 #include <vector>
+#include <string>
+#include <iomanip>
+#include <json/json.h>
+#include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <boost/lexical_cast.hpp>
+#include <google/protobuf/message.h>
+#include "sylar/core/util/hash_util.h"
+#include "sylar/core/util/json_util.h"
+// #include "sylar/util/crypto_util.h"
 
 namespace sylar
 {
 
 /**
- * @brief 获取线程id
- * @note 这里不要把pid_t和pthread_t混淆，关于它们之的区别可参考gettid(2)
- */
+  * @brief 返回当前线程的ID
+  */
 pid_t GetThreadId();
 
 /**
- * @brief 获取协程id
- * @todo 桩函数，暂时返回0，等协程模块完善后再返回实际值
- */
-uint64_t GetFiberId();
+  * @brief 返回当前协程的ID
+  */
+uint32_t GetFiberId();
 
 /**
- * @brief 获取当前启动的毫秒数，参考clock_gettime(2)，使用CLOCK_MONOTONIC_RAW
- */
-uint64_t GetElapsedMS();
-
-/**
- * @brief 获取线程名称，参考pthread_getname_np(3)
- */
-std::string GetThreadName();
-
-/**
- * @brief 设置线程名称，参考pthread_setname_np(3)
- * @note 线程名称不能超过16字节，包括结尾的'\0'字符
- */
-void SetThreadName(const std::string &name);
-
-/**
- * @brief 获取当前的调用栈
- * @param[out] bt 保存调用栈
- * @param[in] size 最多返回层数
- * @param[in] skip 跳过栈顶的层数
- */
+  * @brief 获取当前的调用栈
+  * @param[out] bt 保存调用栈
+  * @param[in] size 最多返回层数
+  * @param[in] skip 跳过栈顶的层数
+  */
 void Backtrace(std::vector<std::string> &bt, int size = 64, int skip = 1);
 
 /**
- * @brief 获取当前栈信息的字符串
- * @param[in] size 栈的最大层数
- * @param[in] skip 跳过栈顶的层数
- * @param[in] prefix 栈信息前输出的内容
- */
+  * @brief 获取当前栈信息的字符串
+  * @param[in] size 栈的最大层数
+  * @param[in] skip 跳过栈顶的层数
+  * @param[in] prefix 栈信息前输出的内容
+  */
 std::string BacktraceToString(int size = 64, int skip = 2, const std::string &prefix = "");
 
 /**
- * @brief 获取当前时间的毫秒
- */
+  * @brief 获取当前时间的毫秒
+  */
 uint64_t GetCurrentMS();
 
 /**
- * @brief 获取当前时间的微秒
- */
+  * @brief 获取当前时间的微秒
+  */
 uint64_t GetCurrentUS();
 
-/**
- * @brief 字符串转大写
- */
 std::string ToUpper(const std::string &name);
 
-/**
- * @brief 字符串转小写
- */
 std::string ToLower(const std::string &name);
 
-/**
- * @brief 日期时间转字符串
- */
 std::string Time2Str(time_t ts = time(0), const std::string &format = "%Y-%m-%d %H:%M:%S");
-
-/**
- * @brief 字符串转日期时间
- */
 time_t Str2Time(const char *str, const char *format = "%Y-%m-%d %H:%M:%S");
 
-/**
- * @brief 文件系统操作类
- */
 class FSUtil
 {
 public:
-    /**
-     * @brief 递归列举指定目录下所有指定后缀的常规文件，如果不指定后缀，则遍历所有文件，返回的文件名带路径
-     * @param[out] files 文件列表 
-     * @param[in] path 路径
-     * @param[in] subfix 后缀名，比如 ".yml"
-     */
     static void ListAllFile(std::vector<std::string> &files, const std::string &path,
                             const std::string &subfix);
-
-    /**
-     * @brief 创建路径，相当于mkdir -p
-     * @param[in] dirname 路径名
-     * @return 创建是否成功
-     */
     static bool Mkdir(const std::string &dirname);
-
-    /**
-     * @brief 判断指定pid文件指定的pid是否正在运行，使用kill(pid, 0)的方式判断
-     * @param[in] pidfile 保存进程号的文件
-     * @return 是否正在运行
-     */
     static bool IsRunningPidfile(const std::string &pidfile);
-
-    /**
-     * @brief 删除文件或路径
-     * @param[in] path 文件名或路径名 
-     * @return 是否删除成功
-     */
     static bool Rm(const std::string &path);
-
-    /**
-     * @brief 移动文件或路径，内部实现是先Rm(to)，再rename(from, to)，参考rename
-     * @param[in] from 源
-     * @param[in] to 目的地
-     * @return 是否成功
-     */
     static bool Mv(const std::string &from, const std::string &to);
-
-    /**
-     * @brief 返回绝对路径，参考realpath(3)
-     * @details 路径中的符号链接会被解析成实际的路径，删除多余的'.' '..'和'/'
-     * @param[in] path 
-     * @param[out] rpath 
-     * @return  是否成功
-     */
     static bool Realpath(const std::string &path, std::string &rpath);
-
-    /**
-     * @brief 创建符号链接，参考symlink(2)
-     * @param[in] from 目标 
-     * @param[in] to 链接路径
-     * @return  是否成功
-     */
-    static bool Symlink(const std::string &from, const std::string &to);
-
-    /**
-     * @brief 删除文件，参考unlink(2)
-     * @param[in] filename 文件名
-     * @param[in] exist 是否存在
-     * @return  是否成功
-     * @note 内部会判断一次是否真的不存在该文件
-     */
+    static bool Symlink(const std::string &frm, const std::string &to);
     static bool Unlink(const std::string &filename, bool exist = false);
-
-    /**
-     * @brief 返回文件，即路径中最后一个/前面的部分，不包括/本身，如果未找到，则返回filename
-     * @param[in] filename 文件完整路径
-     * @return  文件路径
-     */
     static std::string Dirname(const std::string &filename);
-
-    /**
-     * @brief 返回文件名，即路径中最后一个/后面的部分
-     * @param[in] filename 文件完整路径
-     * @return  文件名
-     */
     static std::string Basename(const std::string &filename);
-
-    /**
-     * @brief 以只读方式打开
-     * @param[in] ifs 文件流
-     * @param[in] filename 文件名
-     * @param[in] mode 打开方式
-     * @return  是否打开成功
-     */
     static bool OpenForRead(std::ifstream &ifs, const std::string &filename,
                             std::ios_base::openmode mode);
-
-    /**
-     * @brief 以只写方式打开
-     * @param[in] ofs 文件流
-     * @param[in] filename 文件名
-     * @param[in] mode 打开方式
-     * @return  是否打开成功
-     */
     static bool OpenForWrite(std::ofstream &ofs, const std::string &filename,
                              std::ios_base::openmode mode);
 };
@@ -221,101 +123,15 @@ bool CheckGetParamValue(const Map &m, const K &k, V &v)
     return false;
 }
 
-/**
- * @brief 类型转换
- */
 class TypeUtil
 {
 public:
-    /// 转字符，返回*str.begin()
     static int8_t ToChar(const std::string &str);
-    /// atoi，参考atoi(3)
     static int64_t Atoi(const std::string &str);
-    /// atof，参考atof(3)
     static double Atof(const std::string &str);
-    /// 返回str[0]
     static int8_t ToChar(const char *str);
-    /// atoi，参考atoi(3)
     static int64_t Atoi(const char *str);
-    /// atof，参考atof(3)
     static double Atof(const char *str);
-};
-
-/**
- * @brief 获取T类型的类型字符串
- */
-template <class T>
-const char *TypeToName()
-{
-    static const char *s_name = abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, nullptr);
-    return s_name;
-}
-
-/**
- * @brief 字符串辅助类
- */
-class StringUtil
-{
-public:
-    /**
-     * @brief printf风格的字符串格式化，返回格式化后的string
-     */
-    static std::string Format(const char *fmt, ...);
-
-    /**
-     * @brief vprintf风格的字符串格式化，返回格式化后的string
-     */
-    static std::string Formatv(const char *fmt, va_list ap);
-
-    /**
-     * @brief url编码
-     * @param[in] str 原始字符串
-     * @param[in] space_as_plus 是否将空格编码成+号，如果为false，则空格编码成%20
-     * @return 编码后的字符串
-     */
-    static std::string UrlEncode(const std::string &str, bool space_as_plus = true);
-
-    /**
-     * @brief url解码
-     * @param[in] str url字符串
-     * @param[in] space_as_plus 是否将+号解码为空格
-     * @return 解析后的字符串
-     */
-    static std::string UrlDecode(const std::string &str, bool space_as_plus = true);
-
-    /**
-     * @brief 移除字符串首尾的指定字符串
-     * @param[] str 输入字符串
-     * @param[] delimit 待移除的字符串
-     * @return  移除后的字符串
-     */
-    static std::string Trim(const std::string &str, const std::string &delimit = " \t\r\n");
-
-    /**
-     * @brief 移除字符串首部的指定字符串
-     * @param[] str 输入字符串
-     * @param[] delimit 待移除的字符串
-     * @return  移除后的字符串
-     */
-    static std::string TrimLeft(const std::string &str, const std::string &delimit = " \t\r\n");
-
-    /**
-     * @brief 移除字符尾部的指定字符串
-     * @param[] str 输入字符串
-     * @param[] delimit 待移除的字符串
-     * @return  移除后的字符串
-     */
-    static std::string TrimRight(const std::string &str, const std::string &delimit = " \t\r\n");
-
-    /**
-     * @brief 宽字符串转字符串
-     */
-    static std::string WStringToString(const std::wstring &ws);
-
-    /**
-     * @brief 字符串转宽字符串
-     */
-    static std::wstring StringToWString(const std::string &s);
 };
 
 class Atomic
@@ -406,17 +222,260 @@ public:
     }
 };
 
-//
 template <class T>
 void nop(T *)
 {
 }
 
+template <class T>
+void delete_array(T *v)
+{
+    if (v) {
+        delete[] v;
+    }
+}
 
+template <class T>
+class SharedArray
+{
+public:
+    explicit SharedArray(const uint64_t &size = 0, T *p = 0)
+        : m_size(size), m_ptr(p, delete_array<T>)
+    {
+    }
+    template <class D>
+    SharedArray(const uint64_t &size, T *p, D d) : m_size(size), m_ptr(p, d){};
 
+    SharedArray(const SharedArray &r) : m_size(r.m_size), m_ptr(r.m_ptr) {}
 
+    SharedArray &operator=(const SharedArray &r)
+    {
+        m_size = r.m_size;
+        m_ptr = r.m_ptr;
+        return *this;
+    }
 
+    T &operator[](std::ptrdiff_t i) const { return m_ptr.get()[i]; }
+
+    T *get() const { return m_ptr.get(); }
+
+    bool unique() const { return m_ptr.unique(); }
+
+    long use_count() const { return m_ptr.use_count(); }
+
+    void swap(SharedArray &b)
+    {
+        std::swap(m_size, b.m_size);
+        m_ptr.swap(b.m_ptr);
+    }
+
+    bool operator!() const { return !m_ptr; }
+
+    operator bool() const { return !!m_ptr; }
+
+    uint64_t size() const { return m_size; }
+
+private:
+    uint64_t m_size;
+    std::shared_ptr<T> m_ptr;
+};
+
+class StringUtil
+{
+public:
+    static std::string Format(const char *fmt, ...);
+    static std::string Formatv(const char *fmt, va_list ap);
+
+    static std::string UrlEncode(const std::string &str, bool space_as_plus = true);
+    static std::string UrlDecode(const std::string &str, bool space_as_plus = true);
+
+    static std::string Trim(const std::string &str, const std::string &delimit = " \t\r\n");
+    static std::string TrimLeft(const std::string &str, const std::string &delimit = " \t\r\n");
+    static std::string TrimRight(const std::string &str, const std::string &delimit = " \t\r\n");
+
+    static std::string WStringToString(const std::wstring &ws);
+    static std::wstring StringToWString(const std::string &s);
+};
+
+std::string GetHostName();
+std::string GetIPv4();
+
+bool YamlToJson(const YAML::Node &ynode, Json::Value &jnode);
+bool JsonToYaml(const Json::Value &jnode, YAML::Node &ynode);
+
+template <class T>
+const char *TypeToName()
+{
+    static const char *s_name = abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, nullptr);
+    return s_name;
+}
+
+std::string PBToJsonString(const google::protobuf::Message &message);
+
+template <class Iter>
+std::string Join(Iter begin, Iter end, const std::string &tag)
+{
+    std::stringstream ss;
+    for (Iter it = begin; it != end; ++it) {
+        if (it != begin) {
+            ss << tag;
+        }
+        ss << *it;
+    }
+    return ss.str();
+}
+
+//[begin, end)
+//if rt > 0, 存在,返回对应index
+//   rt < 0, 不存在,返回对于应该存在的-(index + 1)
+template <class T>
+int BinarySearch(const T *arr, int length, const T &v)
+{
+    int m = 0;
+    int begin = 0;
+    int end = length - 1;
+    while (begin <= end) {
+        m = (begin + end) / 2;
+        if (v < arr[m]) {
+            end = m - 1;
+        } else if (arr[m] < v) {
+            begin = m + 1;
+        } else {
+            return m;
+        }
+    }
+    return -begin - 1;
+}
+
+inline bool ReadFixFromStream(std::istream &is, char *data, const uint64_t &size)
+{
+    uint64_t pos = 0;
+    while (is && (pos < size)) {
+        is.read(data + pos, size - pos);
+        pos += is.gcount();
+    }
+    return pos == size;
+}
+
+template <class T>
+bool ReadFromStream(std::istream &is, T &v)
+{
+    return ReadFixFromStream(is, (char *)&v, sizeof(v));
+}
+
+template <class T>
+bool ReadFromStream(std::istream &is, std::vector<T> &v)
+{
+    return ReadFixFromStream(is, (char *)&v[0], sizeof(T) * v.size());
+}
+
+template <class T>
+bool WriteToStream(std::ostream &os, const T &v)
+{
+    if (!os) {
+        return false;
+    }
+    os.write((const char *)&v, sizeof(T));
+    return (bool)os;
+}
+
+template <class T>
+bool WriteToStream(std::ostream &os, const std::vector<T> &v)
+{
+    if (!os) {
+        return false;
+    }
+    os.write((const char *)&v[0], sizeof(T) * v.size());
+    return (bool)os;
+}
+
+class SpeedLimit
+{
+public:
+    typedef std::shared_ptr<SpeedLimit> ptr;
+    SpeedLimit(uint32_t speed);
+    void add(uint32_t v);
+
+private:
+    uint32_t m_speed;
+    float m_countPerMS;
+
+    uint32_t m_curCount;
+    uint32_t m_curSec;
+};
+
+bool ReadFixFromStreamWithSpeed(std::istream &is, char *data, const uint64_t &size,
+                                const uint64_t &speed = -1);
+
+bool WriteFixToStreamWithSpeed(std::ostream &os, const char *data, const uint64_t &size,
+                               const uint64_t &speed = -1);
+
+template <class T>
+bool WriteToStreamWithSpeed(std::ostream &os, const T &v, const uint64_t &speed = -1)
+{
+    if (os) {
+        return WriteFixToStreamWithSpeed(os, (const char *)&v, sizeof(T), speed);
+    }
+    return false;
+}
+
+template <class T>
+bool WriteToStreamWithSpeed(std::ostream &os, const std::vector<T> &v, const uint64_t &speed = -1,
+                            const uint64_t &min_duration_ms = 10)
+{
+    if (os) {
+        return WriteFixToStreamWithSpeed(os, (const char *)&v[0], sizeof(T) * v.size(), speed);
+    }
+    return false;
+}
+
+template <class T>
+bool ReadFromStreamWithSpeed(std::istream &is, const std::vector<T> &v, const uint64_t &speed = -1)
+{
+    if (is) {
+        return ReadFixFromStreamWithSpeed(is, (char *)&v[0], sizeof(T) * v.size(), speed);
+    }
+    return false;
+}
+
+template <class T>
+bool ReadFromStreamWithSpeed(std::istream &is, const T &v, const uint64_t &speed = -1)
+{
+    if (is) {
+        return ReadFixFromStreamWithSpeed(is, (char *)&v, sizeof(T), speed);
+    }
+    return false;
+}
+
+std::string Format(const char *fmt, ...);
+std::string Formatv(const char *fmt, va_list ap);
+
+template <class T>
+void Slice(std::vector<std::vector<T> > &dst, const std::vector<T> &src, size_t size)
+{
+    size_t left = src.size();
+    size_t pos = 0;
+    while (left > size) {
+        std::vector<T> tmp;
+        tmp.reserve(size);
+        for (size_t i = 0; i < size; ++i) {
+            tmp.push_back(src[pos + i]);
+        }
+        pos += size;
+        left -= size;
+        dst.push_back(tmp);
+    }
+
+    if (left > 0) {
+        std::vector<T> tmp;
+        tmp.reserve(left);
+        for (size_t i = 0; i < left; ++i) {
+            tmp.push_back(src[pos + i]);
+        }
+        dst.push_back(tmp);
+    }
+}
 
 } // namespace sylar
 
-#endif // __SYLAR_UTIL_H__
+#endif

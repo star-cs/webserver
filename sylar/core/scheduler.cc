@@ -99,7 +99,7 @@ Scheduler::~Scheduler()
  */
 void Scheduler::start()
 {
-    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::start() called";
+    // SYLAR_LOG_DEBUG(g_logger) << "Scheduler::start() called";
     MutexType::Lock lock(m_mutex);
     if (m_stopping) {
         SYLAR_LOG_WARN(g_logger) << "Scheduler is already stopped, cannot start.";
@@ -186,7 +186,7 @@ void Scheduler::stop()
      */
     if (m_rootFiber) {
         if (!stopping()) {
-            SYLAR_LOG_DEBUG(g_logger) << "Resuming root fiber to process remaining tasks.";
+            // SYLAR_LOG_DEBUG(g_logger) << "Resuming root fiber to process remaining tasks.";
             m_rootFiber->resume();
         }
     }
@@ -200,7 +200,7 @@ void Scheduler::stop()
         SYLAR_LOG_INFO(g_logger) << "Joining thread ID=" << i->getId();
         i->join();
     }
-    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::stop() completed.";
+    // SYLAR_LOG_DEBUG(g_logger) << "Scheduler::stop() completed.";
 }
 
 /**
@@ -305,7 +305,7 @@ void Scheduler::run()
             // 进到这个分支情况一定是任务队列空了，调度idle协程即可
             if (idle_fiber->getState() == Fiber::TERM) {
                 // 如果调度器没有调度任务，那么idle协程会不停地resume/yield，不会结束，如果idle协程结束了，那一定是调度器停止了
-                SYLAR_LOG_DEBUG(g_logger) << "Idle fiber terminated, stopping scheduler.";
+                // SYLAR_LOG_DEBUG(g_logger) << "Idle fiber terminated, stopping scheduler.";
                 break;
             }
             ++m_idleThreadCount;
@@ -314,7 +314,7 @@ void Scheduler::run()
             --m_idleThreadCount;
         }
     }
-    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::run() exited, thread_id=" << sylar::GetThreadId();
+    // SYLAR_LOG_DEBUG(g_logger) << "Scheduler::run() exited, thread_id=" << sylar::GetThreadId();
 }
 
 void Scheduler::adjustThreads(size_t new_threads)

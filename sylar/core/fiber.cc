@@ -52,7 +52,7 @@ Fiber::Fiber()
     SetThis(this);
     ++s_fiber_count;
     m_id = s_fiber_id++; // 协程id从0开始。
-    SYLAR_LOG_DEBUG(g_logger) << "Fiber::Fiber() main id = " << m_id;
+    // SYLAR_LOG_DEBUG(g_logger) << "Fiber::Fiber() main id = " << m_id;
 }
 
 Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool run_in_scheduler)
@@ -67,7 +67,7 @@ Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool run_in_scheduler)
 
 Fiber::~Fiber()
 {
-    SYLAR_LOG_DEBUG(g_logger) << "Fiber::~Fiber() id = " << m_id;
+    // SYLAR_LOG_DEBUG(g_logger) << "Fiber::~Fiber() id = " << m_id;
 
     --s_fiber_count;
     if (m_ctx.hasStack()) { // 如果有协程栈地址，那么就是子协程。
