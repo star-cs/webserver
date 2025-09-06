@@ -65,8 +65,8 @@ static MYSQL *mysql_init(std::map<std::string, std::string> &params, const int &
     if (timeout > 0) {
         mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
     }
-    bool close = false;
-    mysql_options(mysql, MYSQL_OPT_RECONNECT, &close);
+    // bool close = false;
+    // mysql_options(mysql, MYSQL_OPT_RECONNECT, &close);
     mysql_options(mysql, MYSQL_SET_CHARSET_NAME, "utf8mb4");
 
     int port = sylar::GetParamValue(params, "port", 0);

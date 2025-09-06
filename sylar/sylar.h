@@ -30,5 +30,6 @@
 #include "sylar/net/uri.h"
 #include "sylar/core/daemon.h"
 #include "sylar/io/db/mysql.h"
+#include "sylar/io/db/redis.h"
 
 #endif

@@ -27,7 +27,14 @@ include_directories(.)
 include_directories(/usr/local/include) 
 link_directories(/usr/local/lib)            # 一般安装后，include是头文件，lib是库文件
 
+include_directories(/usr/include/jsoncpp)
+# find_package(hiredis REQUIRED)
 # find_package(MySQLConnector REQUIRED) # 查找 MySQL Connector/C++
+find_package(OpenSSL REQUIRED)
+if(OPENSSL_FOUND)
+    include_directories(${OPENSSL_INCLUDE_DIR})
+endif()
+
 
 set(LIB_SRC
     sylar/core/config/config.cc
@@ -68,7 +75,14 @@ set(LIB_SRC
     sylar/core/fcontext_asm/jump_x86_64_sysv_elf_gas.S
     sylar/core/fcontext_asm/make_x86_64_sysv_elf_gas.S
 
+    sylar/io/db/fox_thread.cc
+    sylar/io/db/redis.cc
     sylar/io/db/mysql.cc
+    sylar/io/db/sqlite3.cc
+
+    # sylar/io/util/crypto_util.cc 
+    sylar/io/util/hash_util.cc 
+    sylar/io/util/json_util.cc 
     )
 
 add_library(sylar SHARED ${LIB_SRC})
@@ -76,10 +90,16 @@ force_redefine_file_macro_for_sources(sylar)
 
 set(LIBS
     sylar
-    yaml-cpp
-    pthread
     dl
-    mysqlclient  
+    pthread
+    yaml-cpp
+    jsoncpp
+    ${OPENSSL_LIBRARIES}
+    event
+    hiredis_vip
+    mysqlclient
+    sqlite3
+    tinyxml2
 )
 
 sylar_add_executable(test_log "tests/core/test_log.cc" sylar "${LIBS}")
@@ -105,6 +125,25 @@ sylar_add_executable(test_tcp_server "tests/net/test_tcp_server.cc" sylar "${LIB
 sylar_add_executable(test_http_parser "tests/net/http/test_http_parser.cc" sylar "${LIBS}")
 sylar_add_executable(test_http_server "tests/net/http/test_http_server.cc" sylar "${LIBS}")
 sylar_add_executable(test_http_connection "tests/net/http/test_http_connection.cc" sylar "${LIBS}")
+
+
+sylar_add_executable(test_mysql "tests/io/test_mysql.cc" sylar "${LIBS}")
+
+
+set(ORM_SRCS
+    sylar/io/orm/orm.cc
+    sylar/io/orm/column.cc
+    sylar/io/orm/index.cc
+    sylar/io/orm/table.cc
+    sylar/io/orm/util.cc
+    )
+sylar_add_executable(orm "${ORM_SRCS}" sylar "${LIBS}")
+
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/orm_out)
+set(OLIBS ${LIBS} orm_data)
+sylar_add_executable(test_orm "tests/io/test_orm.cc" orm_data "${OLIBS}")
+
 
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

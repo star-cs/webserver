@@ -1,6 +1,6 @@
 #include "redis.h"
+#include "sylar/io/util/hash_util.h"
 #include "sylar/sylar.h"
-#include "sylar/core/log/log.h"
 
 namespace sylar
 {
@@ -670,7 +670,7 @@ ReplyPtr FoxRedis::cmd(const char *fmt, va_list ap)
     fctx.fiber = sylar::Fiber::GetThis();
 
     m_thread->dispatch(std::bind(&FoxRedis::pcmd, this, &fctx));
-    sylar::Fiber::YieldToHold();
+    sylar::Fiber::GetThis()->yield();
     return fctx.rpy;
 }
 
@@ -704,7 +704,7 @@ ReplyPtr FoxRedis::cmd(const std::vector<std::string> &argv)
     fctx.fiber = sylar::Fiber::GetThis();
 
     m_thread->dispatch(std::bind(&FoxRedis::pcmd, this, &fctx));
-    sylar::Fiber::YieldToHold();
+    sylar::Fiber::GetThis()->yield();
     return fctx.rpy;
 }
 
@@ -1041,7 +1041,7 @@ ReplyPtr FoxRedisCluster::cmd(const char *fmt, va_list ap)
     //ctx->thread = m_thread;
 
     m_thread->dispatch(std::bind(&FoxRedisCluster::pcmd, this, &fctx));
-    sylar::Fiber::YieldToHold();
+    sylar::Fiber::GetThis()->yield();
     return fctx.rpy;
 }
 
@@ -1071,7 +1071,7 @@ ReplyPtr FoxRedisCluster::cmd(const std::vector<std::string> &argv)
     fctx.fiber = sylar::Fiber::GetThis();
 
     m_thread->dispatch(std::bind(&FoxRedisCluster::pcmd, this, &fctx));
-    sylar::Fiber::YieldToHold();
+    sylar::Fiber::GetThis()->yield();
     return fctx.rpy;
 }
 

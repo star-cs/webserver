@@ -221,6 +221,16 @@ private:
     bool m_stopping = false;
 };
 
+class SchedulerSwitcher : public Noncopyable
+{
+public:
+    SchedulerSwitcher(Scheduler *target = nullptr);
+    ~SchedulerSwitcher();
+
+private:
+    Scheduler *m_caller;
+};
+
 } // end namespace sylar
 
 #endif

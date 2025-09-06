@@ -483,8 +483,6 @@ enum class HttpStatus {
         bool m_close;
         /// 是否为websocket
         bool m_websocket;
-
-        uint8_t m_parserParamFlag;
         /// 参数解析标志位，0:未解析，1:已解析url参数, 2:已解析http消息体中的参数，4:已解析cookies
         uint8_t m_parserParamFlag;
         /// 请求的完整url

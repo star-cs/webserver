@@ -95,10 +95,17 @@ HTTP 模块
       └─ ReleasePtr（释放连接回池或销毁）
 ```
 
-# 后续计划
-- Linux性能监控
-- RPC
-- Muduo网络库
-- 音视频协议开发
+部署
+```bash
+sudo apt-get install libevent-dev libhiredis-dev
+sudo apt-get install sqlite3
+```
+
+
+# ORM
+```bash
+../bin/orm ../bin/orm_conf/ ../orm_out
+```
+
 
 # 路漫漫其修远兮，吾将上下而求索
