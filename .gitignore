@@ -40,7 +40,8 @@ lib
 
 # bin
 test_*
-orm
+bin/orm
+orm_out
 
 # log
 system.txt
