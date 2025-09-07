@@ -41,6 +41,7 @@ lib
 # bin
 test_*
 bin/orm
+bin/sylar
 orm_out
 
 # log
