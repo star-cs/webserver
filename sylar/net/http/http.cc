@@ -12,7 +12,6 @@ namespace http
     if (strcmp(#string, m.c_str()) == 0) {                                                         \
         return HttpMethod::name;                                                                   \
     }
-
         HTTP_METHOD_MAP(XX);
 #undef XX
         return HttpMethod::INVALID_METHOD;
@@ -29,27 +28,28 @@ namespace http
         return HttpMethod::INVALID_METHOD;
     }
 
+    static const char *s_method_string[] = {
+#define XX(num, name, string) #string,
+        HTTP_METHOD_MAP(XX)
+#undef XX
+    };
+
     const char *HttpMethodToString(const HttpMethod &m)
     {
-        switch (m) {
-#define XX(num, name, string)                                                                      \
-    case HttpMethod::name:                                                                         \
-        return #string;
-
-            HTTP_METHOD_MAP(XX)
-#undef XX
-            default:
-                return "<unknown>";
+        uint32_t idx = (uint32_t)m;
+        if (idx >= (sizeof(s_method_string) / sizeof(s_method_string[0]))) {
+            return "<unknown>";
         }
+        return s_method_string[idx];
     }
 
     const char *HttpStatusToString(const HttpStatus &s)
     {
         switch (s) {
-#define XX(code, name, desc)                                                                       \
+#define XX(code, name, msg)                                                                        \
     case HttpStatus::name:                                                                         \
-        return #desc;
-            HTTP_STATUS_MAP(XX)
+        return #msg;
+            HTTP_STATUS_MAP(XX);
 #undef XX
             default:
                 return "<unknown>";
@@ -58,11 +58,8 @@ namespace http
 
     bool CaseInsensitiveLess::operator()(const std::string &lhs, const std::string &rhs) const
     {
-        //strcasecmp 在比较字符串时忽略大小写
         return strcasecmp(lhs.c_str(), rhs.c_str()) < 0;
     }
-
-    /// ************************** HttpRequest **************************
 
     HttpRequest::HttpRequest(uint8_t version, bool close)
         : m_method(HttpMethod::GET), m_version(version), m_close(close), m_websocket(false),
@@ -70,16 +67,16 @@ namespace http
     {
     }
 
-    std::shared_ptr<HttpResponse> HttpRequest::createResponse()
-    {
-        HttpResponse::ptr rsp(new HttpResponse(getVersion(), isClose()));
-        return rsp;
-    }
-
     std::string HttpRequest::getHeader(const std::string &key, const std::string &def) const
     {
         auto it = m_headers.find(key);
         return it == m_headers.end() ? def : it->second;
+    }
+
+    std::shared_ptr<HttpResponse> HttpRequest::createResponse()
+    {
+        HttpResponse::ptr rsp(new HttpResponse(getVersion(), isClose()));
+        return rsp;
     }
 
     std::string HttpRequest::getParam(const std::string &key, const std::string &def)
@@ -166,24 +163,30 @@ namespace http
         return true;
     }
 
+    std::string HttpRequest::toString() const
+    {
+        std::stringstream ss;
+        dump(ss);
+        return ss.str();
+    }
+
     std::ostream &HttpRequest::dump(std::ostream &os) const
     {
-        /*
-    GET /path?query#fragment HTTP/1.1
-    Host: www.baidu.com
-
-    */
-
+        //GET /uri HTTP/1.1
+        //Host: wwww.sylar.top
+        //
+        //
         os << HttpMethodToString(m_method) << " " << m_path << (m_query.empty() ? "" : "?")
            << m_query << (m_fragment.empty() ? "" : "#") << m_fragment << " HTTP/"
            << ((uint32_t)(m_version >> 4)) << "." << ((uint32_t)(m_version & 0x0F)) << "\r\n";
-
         if (!m_websocket) {
             os << "connection: " << (m_close ? "close" : "keep-alive") << "\r\n";
         }
-
         for (auto &i : m_headers) {
             if (!m_websocket && strcasecmp(i.first.c_str(), "connection") == 0) {
+                continue;
+            }
+            if (!m_body.empty() && strcasecmp(i.first.c_str(), "content-length") == 0) {
                 continue;
             }
             os << i.first << ": " << i.second << "\r\n";
@@ -197,20 +200,12 @@ namespace http
         return os;
     }
 
-    std::string HttpRequest::toString() const
-    {
-        std::stringstream ss;
-        dump(ss);
-        return ss.str();
-    }
-
     void HttpRequest::initQueryParam()
     {
         if (m_parserParamFlag & 0x1) {
             return;
         }
 
-        /// 从str里找，每一对参数中间由=分割；参数对之间由flag分割；
 #define PARSE_PARAM(str, m, flag, trim)                                                            \
     size_t pos = 0;                                                                                \
     do {                                                                                           \
@@ -239,7 +234,7 @@ namespace http
         ++pos;                                                                                     \
     } while (true);
 
-        PARSE_PARAM(m_query, m_params, "&", );
+        PARSE_PARAM(m_query, m_params, '&', );
         m_parserParamFlag |= 0x1;
     }
 
@@ -283,15 +278,6 @@ namespace http
         }
     }
 
-    void HttpRequest::initParam()
-    {
-        initQueryParam();
-        initBodyParam();
-        initCookies();
-    }
-
-    /// ************************** HttpResponse **************************
-
     HttpResponse::HttpResponse(uint8_t version, bool close)
         : m_status(HttpStatus::OK), m_version(version), m_close(close), m_websocket(false)
     {
@@ -313,31 +299,30 @@ namespace http
         m_headers.erase(key);
     }
 
-    std::ostream &HttpResponse::dump(std::ostream &os) const
+    void HttpResponse::setRedirect(const std::string &uri)
     {
-        os << "HTTP/" << ((uint32_t)(m_version >> 4)) << "." << ((uint32_t)(m_version & 0x4F))
-           << " " << (uint32_t)m_status << " "
-           << (m_reason.empty() ? HttpStatusToString(m_status) : m_reason) << "\r\n";
+        m_status = HttpStatus::FOUND;
+        setHeader("Location", uri);
+    }
 
-        for (auto &i : m_headers) {
-            if (!m_websocket && strcasecmp(i.first.c_str(), "connection") == 0) {
-                continue;
-            }
-            os << i.first << ": " << i.second << "\r\n";
+    void HttpResponse::setCookie(const std::string &key, const std::string &val, time_t expired,
+                                 const std::string &path, const std::string &domain, bool secure)
+    {
+        std::stringstream ss;
+        ss << key << "=" << val;
+        if (expired > 0) {
+            ss << ";expires=" << sylar::Time2Str(expired, "%a, %d %b %Y %H:%M:%S") << " GMT";
         }
-
-        for (auto &i : m_cookies) {
-            os << "Set-Cookie: " << i << "\r\n";
+        if (!domain.empty()) {
+            ss << ";domain=" << domain;
         }
-        if (!m_websocket) {
-            os << "Connection: " << (m_close ? "close" : "keep-alive") << "\r\n";
+        if (!path.empty()) {
+            ss << ";path=" << path;
         }
-        if (!m_body.empty()) {
-            os << "Content-Length: " << m_body.size() << "\r\n\r\n" << m_body;
-        } else {
-            os << "\r\n";
+        if (secure) {
+            ss << ";secure";
         }
-        return os;
+        m_cookies.push_back(ss.str());
     }
 
     std::string HttpResponse::toString() const
@@ -347,13 +332,30 @@ namespace http
         return ss.str();
     }
 
-    void HttpResponse::setRedirect(const std::string &uri)
+    std::ostream &HttpResponse::dump(std::ostream &os) const
     {
-    }
+        os << "HTTP/" << ((uint32_t)(m_version >> 4)) << "." << ((uint32_t)(m_version & 0x0F))
+           << " " << (uint32_t)m_status << " "
+           << (m_reason.empty() ? HttpStatusToString(m_status) : m_reason) << "\r\n";
 
-    void HttpResponse::setCookie(const std::string &key, const std::string &val, time_t expired,
-                                 const std::string &path, const std::string &domain, bool secure)
-    {
+        for (auto &i : m_headers) {
+            if (!m_websocket && strcasecmp(i.first.c_str(), "connection") == 0) {
+                continue;
+            }
+            os << i.first << ": " << i.second << "\r\n";
+        }
+        for (auto &i : m_cookies) {
+            os << "Set-Cookie: " << i << "\r\n";
+        }
+        if (!m_websocket) {
+            os << "connection: " << (m_close ? "close" : "keep-alive") << "\r\n";
+        }
+        if (!m_body.empty()) {
+            os << "content-length: " << m_body.size() << "\r\n\r\n" << m_body;
+        } else {
+            os << "\r\n";
+        }
+        return os;
     }
 
     std::ostream &operator<<(std::ostream &os, const HttpRequest &req)
