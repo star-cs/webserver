@@ -255,7 +255,7 @@ bool IOManager::cancelEvent(int fd, Event event){
     SYLAR_LOG_DEBUG(g_logger) << "cancelEvent called, fd=" << fd << ", event=" << (EPOLL_EVENTS)event;
     FdContext* fd_ctx = nullptr;
     RWMutexType::ReadLock lock(m_mutex);
-    if((int)m_fdContexts.size() >= fd){
+    if((int)m_fdContexts.size() <= fd){
         SYLAR_LOG_ERROR(g_logger) << "cancelEvent fd error";
         return false;
     }

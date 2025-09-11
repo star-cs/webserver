@@ -62,7 +62,7 @@ Fiber::Fiber(std::function<void()> cb, size_t stacksize, bool run_in_scheduler)
 
     ++s_fiber_count;
 
-    SYLAR_LOG_DEBUG(g_logger) << "Fiber::Fiber() id = " << m_id;
+    // SYLAR_LOG_DEBUG(g_logger) << "Fiber::Fiber() id = " << m_id;
 }
 
 Fiber::~Fiber()

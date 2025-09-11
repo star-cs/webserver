@@ -246,8 +246,8 @@ void Scheduler::run()
         bool tickle_me = false; // 是否 tickle 其他线程进行任务调度
         {
             MutexType::Lock lock(m_mutex);
-            if (m_tasks.size())
-                SYLAR_LOG_DEBUG(g_logger) << "m_tasks size : " << m_tasks.size();
+            // if (m_tasks.size())
+            //     SYLAR_LOG_DEBUG(g_logger) << "m_tasks size : " << m_tasks.size();
             auto it = m_tasks.begin();
             while (it != m_tasks.end()) {
                 // 如果当前的任务 不在 目标线程里
@@ -373,6 +373,5 @@ std::ostream &Scheduler::dump(std::ostream &os)
     }
     return os;
 }
-
 
 } // namespace sylar

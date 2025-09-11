@@ -144,7 +144,7 @@ namespace orm
         }
 
         // 引入 自定义头文件
-        std::set<std::string> incs = {"sylar/io/db/db.h", "sylar/io/util/json_util.h"};
+        std::set<std::string> incs = {"sylar/io/db/db.h", "sylar/core/util/json_util.h"};
         for (auto &i : incs) {
             ofs << "#include \"" << i << "\"" << std::endl;
         }
