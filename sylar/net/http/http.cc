@@ -244,11 +244,11 @@ namespace http
             return;
         }
         std::string content_type = getHeader("content-type");
-        if (strcasestr(content_type.c_str(), "application/x-www-form-urlencoded") == nullptr) {
-            m_parserParamFlag |= 0x2;
-            return;
+        if (strcasestr(content_type.c_str(), "application/x-www-form-urlencoded") != nullptr) {
+            PARSE_PARAM(m_body, m_params, '&', );
         }
-        PARSE_PARAM(m_body, m_params, '&', );
+        // 对于application/octet-stream类型，不需要解析参数，直接存储原始数据
+        // 客户端可以通过getBody()方法获取完整的二进制数据
         m_parserParamFlag |= 0x2;
     }
 
