@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include "sylar/net/http2/http2_server.h"
 #include "sylar/net/tcp_server.h"
 #include "sylar/core/daemon.h"
 #include "sylar/core/config/config.h"
@@ -14,7 +15,7 @@
 // #include "sylar/net/http/ws_server.h"
 // #include "sylar/net/rock/rock_server.h"
 // #include "sylar/net/ns/name_server_module.h"
-#include "sylar/io/db/fox_thread.h"
+#include "sylar/core/fox_thread.h"
 #include "sylar/io/db/redis.h"
 
 namespace sylar
@@ -32,7 +33,8 @@ static sylar::ConfigVar<std::string>::ptr g_server_pid_file =
     sylar::Config::Lookup("server.pid_file", std::string("sylar.pid"), "server pid file");
 
 // static sylar::ConfigVar<std::string>::ptr g_service_discovery_zk =
-//     sylar::Config::Lookup("service_discovery.zk", std::string(""), "service discovery zookeeper");
+//     sylar::Config::Lookup("service_discovery.zk", std::string(""), "service discovery
+//     zookeeper");
 
 // 服务器配置变量
 static sylar::ConfigVar<std::vector<TcpServerConf> >::ptr g_servers_conf =
@@ -147,11 +149,11 @@ int Application::main(int argc, char **argv)
     // 忽略SIGPIPE信号，防止写入已关闭的socket导致进程退出
     signal(SIGPIPE, SIG_IGN);
     SYLAR_LOG_INFO(g_logger) << "main";
-    
+
     // 重新加载配置文件
     std::string conf_path = sylar::EnvMgr::GetInstance()->getConfigPath();
     sylar::Config::LoadFromConfDir(conf_path, true);
-    
+
     // 创建并写入PID文件
     {
         std::string pidfile = g_server_work_path->getValue() + "/" + g_server_pid_file->getValue();
@@ -171,7 +173,7 @@ int Application::main(int argc, char **argv)
     m_mainIOManager->addTimer(
         2000,
         []() {
-            //SYLAR_LOG_INFO(g_logger) << "hello";
+            // SYLAR_LOG_INFO(g_logger) << "hello";
         },
         true);
     // 停止主IO管理器
@@ -185,7 +187,7 @@ int Application::run_fiber()
     // 获取所有已注册的模块
     std::vector<Module::ptr> modules;
     ModuleMgr::GetInstance()->listAll(modules);
-    
+
     // 检查所有模块是否能成功加载
     bool has_error = false;
     for (auto &i : modules) {
@@ -196,7 +198,7 @@ int Application::run_fiber()
             has_error = true;
         }
     }
-    
+
     // 如果有任何模块加载失败，则退出程序
     if (has_error) {
         _exit(0);
@@ -220,7 +222,7 @@ int Application::run_fiber()
             size_t pos = a.find(":");
             if (pos == std::string::npos) {
                 // 如果没有端口号，则认为是Unix域套接字地址
-                //SYLAR_LOG_ERROR(g_logger) << "invalid address: " << a;
+                // SYLAR_LOG_ERROR(g_logger) << "invalid address: " << a;
                 address.push_back(UnixAddress::ptr(new UnixAddress(a)));
                 continue;
             }
@@ -231,7 +233,7 @@ int Application::run_fiber()
                 address.push_back(addr);
                 continue;
             }
-            
+
             // 尝试通过网络接口名称获取地址
             std::vector<std::pair<Address::ptr, uint32_t> > result;
             if (sylar::Address::GetInterfaceAddresses(result, a.substr(0, pos))) {
@@ -251,12 +253,12 @@ int Application::run_fiber()
                 address.push_back(aaddr);
                 continue;
             }
-            
+
             // 如果所有方式都失败，则记录错误并退出
             SYLAR_LOG_ERROR(g_logger) << "invalid address: " << a;
             _exit(0);
         }
-        
+
         // 获取工作线程配置
         IOManager *accept_worker = sylar::IOManager::GetThis();
         IOManager *io_worker = sylar::IOManager::GetThis();
@@ -291,10 +293,14 @@ int Application::run_fiber()
             // 创建HTTP服务器
             server.reset(
                 new sylar::http::HttpServer(i.keepalive, process_worker, io_worker, accept_worker));
+        } else if (i.type == "http2") {
+            server = std::make_shared<sylar::http2::Http2Server>(process_worker, io_worker,
+                                                                 accept_worker);
         } else if (i.type == "ws") {
             // server.reset(new sylar::http::WSServer(process_worker, io_worker, accept_worker));
         } else if (i.type == "rock") {
-            // server.reset(new sylar::RockServer("rock", process_worker, io_worker, accept_worker));
+            // server.reset(new sylar::RockServer("rock", process_worker, io_worker,
+            // accept_worker));
         } else if (i.type == "nameserver") {
             // server.reset(
             //     new sylar::RockServer("nameserver", process_worker, io_worker, accept_worker));
@@ -304,12 +310,12 @@ int Application::run_fiber()
                 << "invalid server type=" << i.type << LexicalCast<TcpServerConf, std::string>()(i);
             _exit(0);
         }
-        
+
         // 设置服务器名称
         if (!i.name.empty()) {
             server->setName(i.name);
         }
-        
+
         // 绑定地址，如果失败则退出
         std::vector<Address::ptr> fails;
         if (!server->bind(address, fails, i.ssl)) {
@@ -318,7 +324,7 @@ int Application::run_fiber()
             }
             _exit(0);
         }
-        
+
         // 如果是SSL服务器，加载证书文件
         if (i.ssl) {
             if (!server->loadCertificates(i.cert_file, i.key_file)) {
@@ -326,7 +332,7 @@ int Application::run_fiber()
                                           << " key_file=" << i.key_file;
             }
         }
-        
+
         // 设置服务器配置并保存服务器实例
         server->setConf(i);
         m_servers[i.type].push_back(server);
@@ -347,7 +353,7 @@ int Application::run_fiber()
     for (auto &i : modules) {
         i->onServerUp();
     }
-    
+
     return 0;
 }
 

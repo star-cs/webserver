@@ -22,10 +22,10 @@ namespace sylar
 {
 
 /**
-  * @brief 协程调度器
-  * @details 封装的是N-M的协程调度器
-  *          内部有一个线程池,支持协程在线程池里面切换
-  */
+ * @brief 协程调度器
+ * @details 封装的是N-M的协程调度器
+ *          内部有一个线程池,支持协程在线程池里面切换
+ */
 class Scheduler
 {
 public:
@@ -33,46 +33,46 @@ public:
     typedef Mutex MutexType;
 
     /**
-      * @brief 创建调度器
-      * @param[in] threads 线程数
-      * @param[in] use_caller 是否将当前线程也作为调度线程
-      * @param[in] name 名称
-      */
+     * @brief 创建调度器
+     * @param[in] threads 线程数
+     * @param[in] use_caller 是否将当前线程也作为调度线程
+     * @param[in] name 名称
+     */
     Scheduler(size_t threads = 1, bool use_caller = true, const std::string &name = "Scheduler");
 
     /**
-      * @brief 析构函数
-      */
+     * @brief 析构函数
+     */
     virtual ~Scheduler();
 
     /**
-      * @brief 获取调度器名称
-      */
+     * @brief 获取调度器名称
+     */
     const std::string &getName() const { return m_name; }
 
     /**
-      * @brief 获取当前线程调度器指针
-      */
+     * @brief 获取当前线程调度器指针
+     */
     static Scheduler *GetThis();
 
     /**
-      * @brief 获取当前线程的主协程
-      * 任务线程的 主协程
-      * 
-      */
+     * @brief 获取当前线程的主协程
+     * 任务线程的 主协程
+     *
+     */
     static Fiber *GetMainFiber();
 
     /**
-      * @brief 添加调度任务
-      * @tparam FiberOrCb 调度任务类型，可以是协程对象或函数指针
-      * @param[] fc 协程对象或指针
-      * @param[] thread 指定运行该任务的线程号，-1表示任意线程
-      * 
-      * 
-      * 设计：
-      * 使用模板函数，传入 Fiber或 仿函数
-      * 设置锁，在锁内调用无锁的 模板函数scheduleNoLock
-      */
+     * @brief 添加调度任务
+     * @tparam FiberOrCb 调度任务类型，可以是协程对象或函数指针
+     * @param[] fc 协程对象或指针
+     * @param[] thread 指定运行该任务的线程号，-1表示任意线程
+     *
+     *
+     * 设计：
+     * 使用模板函数，传入 Fiber或 仿函数
+     * 设置锁，在锁内调用无锁的 模板函数scheduleNoLock
+     */
     template <class FiberOrCb>
     void schedule(FiberOrCb fc, int thread = -1)
     {
@@ -93,13 +93,13 @@ public:
     }
 
     /**
-      * @brief 启动调度器
-      */
+     * @brief 启动调度器
+     */
     void start();
 
     /**
-      * @brief 停止调度器，等所有调度任务都执行完了再返回
-      */
+     * @brief 停止调度器，等所有调度任务都执行完了再返回
+     */
     void stop();
 
     bool hasIdleThreads() { return m_idleThreadCount > 0; }
@@ -112,41 +112,43 @@ public:
 
     size_t getIdleThreadSize() const { return m_idleThreadCount; }
 
+    void switchTo(int thread = -1);
+
     std::ostream &dump(std::ostream &os);
 
 protected:
     /**
-      * @brief 通知协程调度器有任务了
-      */
+     * @brief 通知协程调度器有任务了
+     */
     virtual void tickle();
 
     /**
-      * @brief 协程调度函数
-      */
+     * @brief 协程调度函数
+     */
     void run();
 
     /**
-      * @brief 无任务调度时执行idle协程
-      */
+     * @brief 无任务调度时执行idle协程
+     */
     virtual void idle();
 
     /**
-      * @brief 返回是否可以停止
-      */
+     * @brief 返回是否可以停止
+     */
     virtual bool stopping();
 
     /**
-      * @brief 设置当前的协程调度器
-      */
+     * @brief 设置当前的协程调度器
+     */
     void setThis();
 
 private:
     /**
-      * @brief 添加调度任务，无锁
-      * @tparam FiberOrCb 调度任务类型，可以是协程对象或函数指针
-      * @param[] fc 协程对象或指针
-      * @param[] thread 指定运行该任务的线程号，-1表示任意线程
-      */
+     * @brief 添加调度任务，无锁
+     * @tparam FiberOrCb 调度任务类型，可以是协程对象或函数指针
+     * @param[] fc 协程对象或指针
+     * @param[] thread 指定运行该任务的线程号，-1表示任意线程
+     */
     template <class FiberOrCb>
     bool scheduleNoLock(FiberOrCb fc, int thread)
     {
@@ -160,8 +162,8 @@ private:
 
 private:
     /**
-      * @brief 调度任务，协程/函数二选一，可指定在哪个线程上调度
-      */
+     * @brief 调度任务，协程/函数二选一，可指定在哪个线程上调度
+     */
     struct ScheduleTask {
         Fiber::ptr fiber;
         std::function<void()> cb;
@@ -224,8 +226,20 @@ private:
 class SchedulerSwitcher : public Noncopyable
 {
 public:
-    SchedulerSwitcher(Scheduler *target = nullptr);
-    ~SchedulerSwitcher();
+    SchedulerSwitcher(Scheduler *target = nullptr)
+    {
+        m_caller = Scheduler::GetThis();
+        if (target) {
+            target->switchTo();
+        }
+    }
+
+    ~SchedulerSwitcher()
+    {
+        if (m_caller) {
+            m_caller->switchTo();
+        }
+    }
 
 private:
     Scheduler *m_caller;

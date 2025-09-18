@@ -63,7 +63,7 @@ namespace http
 
     HttpRequest::HttpRequest(uint8_t version, bool close)
         : m_method(HttpMethod::GET), m_version(version), m_close(close), m_websocket(false),
-          m_parserParamFlag(0), m_path("/")
+          m_parserParamFlag(0), m_streamId(0), m_path("/")
     {
     }
 
@@ -73,10 +73,39 @@ namespace http
         return it == m_headers.end() ? def : it->second;
     }
 
+    void HttpRequest::setUri(const std::string &uri)
+    {
+        auto pos = uri.find('?');
+        if (pos == std::string::npos) {
+            auto pos2 = uri.find('#');
+            if (pos2 == std::string::npos) {
+                m_path = uri;
+            } else {
+                m_path = uri.substr(0, pos2);
+                m_fragment = uri.substr(pos2 + 1);
+            }
+        } else {
+            m_path = uri.substr(0, pos);
+
+            auto pos2 = uri.find('#', pos + 1);
+            if (pos2 == std::string::npos) {
+                m_query = uri.substr(pos + 1);
+            } else {
+                m_query = uri.substr(pos + 1, pos2 - pos - 1);
+                m_fragment = uri.substr(pos2 + 1);
+            }
+        }
+    }
+
+    std::string HttpRequest::getUri()
+    {
+        return m_path + (m_query.empty() ? "" : "?" + m_query)
+               + (m_fragment.empty() ? "" : "#" + m_fragment);
+    }
+
     std::shared_ptr<HttpResponse> HttpRequest::createResponse()
     {
-        HttpResponse::ptr rsp(new HttpResponse(getVersion(), isClose()));
-        return rsp;
+        return std::make_shared<HttpResponse>(getVersion(), isClose());
     }
 
     std::string HttpRequest::getParam(const std::string &key, const std::string &def)
@@ -172,8 +201,8 @@ namespace http
 
     std::ostream &HttpRequest::dump(std::ostream &os) const
     {
-        //GET /uri HTTP/1.1
-        //Host: wwww.sylar.top
+        // GET /uri HTTP/1.1
+        // Host: wwww.sylar.top
         //
         //
         os << HttpMethodToString(m_method) << " " << m_path << (m_query.empty() ? "" : "?")
@@ -186,7 +215,7 @@ namespace http
             if (!m_websocket && strcasecmp(i.first.c_str(), "connection") == 0) {
                 continue;
             }
-            if (!m_body.empty() && strcasecmp(i.first.c_str(), "content-length") == 0) {
+            if (!strcasecmp(i.first.c_str(), "content-length")) {
                 continue;
             }
             os << i.first << ": " << i.second << "\r\n";
@@ -198,6 +227,25 @@ namespace http
             os << "\r\n";
         }
         return os;
+    }
+
+    void HttpRequest::init()
+    {
+        std::string conn = getHeader("connection");
+        if (!conn.empty()) {
+            if (strcasecmp(conn.c_str(), "keep-alive") == 0) {
+                m_close = false;
+            } else {
+                m_close = true;
+            }
+        }
+    }
+
+    void HttpRequest::initParam()
+    {
+        initQueryParam();
+        initBodyParam();
+        initCookies();
     }
 
     void HttpRequest::initQueryParam()
@@ -216,17 +264,8 @@ namespace http
         }                                                                                          \
         size_t key = pos;                                                                          \
         pos = str.find(flag, pos);                                                                 \
-                                                                                                   \
-        if (0) {                                                                                   \
-            std::cout << "<key>:" << str.substr(last, key - last) << " <decoded>:"                 \
-                      << sylar::StringUtil::UrlDecode(str.substr(last, key - last))                \
-                      << " <value>:" << str.substr(key + 1, pos - key - 1) << " <decoded>:"        \
-                      << sylar::StringUtil::UrlDecode(str.substr(key + 1, pos - key - 1))          \
-                      << std::endl;                                                                \
-        }                                                                                          \
-                                                                                                   \
         m.insert(                                                                                  \
-            std::make_pair(sylar::StringUtil::UrlDecode(trim(str.substr(last, key - last))),       \
+            std::make_pair(trim(str.substr(last, key - last)),                                     \
                            sylar::StringUtil::UrlDecode(str.substr(key + 1, pos - key - 1))));     \
         if (pos == std::string::npos) {                                                            \
             break;                                                                                 \
@@ -244,11 +283,11 @@ namespace http
             return;
         }
         std::string content_type = getHeader("content-type");
-        if (strcasestr(content_type.c_str(), "application/x-www-form-urlencoded") != nullptr) {
-            PARSE_PARAM(m_body, m_params, '&', );
+        if (strcasestr(content_type.c_str(), "application/x-www-form-urlencoded") == nullptr) {
+            m_parserParamFlag |= 0x2;
+            return;
         }
-        // 对于application/octet-stream类型，不需要解析参数，直接存储原始数据
-        // 客户端可以通过getBody()方法获取完整的二进制数据
+        PARSE_PARAM(m_body, m_params, '&', );
         m_parserParamFlag |= 0x2;
     }
 
@@ -266,21 +305,26 @@ namespace http
         m_parserParamFlag |= 0x4;
     }
 
-    void HttpRequest::init()
+    void HttpRequest::paramToQuery()
+    {
+        m_query = sylar::MapJoin(m_params.begin(), m_params.end());
+    }
+
+    HttpResponse::HttpResponse(uint8_t version, bool close)
+        : m_status(HttpStatus::OK), m_version(version), m_close(close), m_websocket(false)
+    {
+    }
+
+    void HttpResponse::initConnection()
     {
         std::string conn = getHeader("connection");
         if (!conn.empty()) {
             if (strcasecmp(conn.c_str(), "keep-alive") == 0) {
                 m_close = false;
             } else {
-                m_close = true;
+                m_close = m_version == 0x10;
             }
         }
-    }
-
-    HttpResponse::HttpResponse(uint8_t version, bool close)
-        : m_status(HttpStatus::OK), m_version(version), m_close(close), m_websocket(false)
-    {
     }
 
     std::string HttpResponse::getHeader(const std::string &key, const std::string &def) const
@@ -338,9 +382,13 @@ namespace http
            << " " << (uint32_t)m_status << " "
            << (m_reason.empty() ? HttpStatusToString(m_status) : m_reason) << "\r\n";
 
+        bool has_content_length = false;
         for (auto &i : m_headers) {
             if (!m_websocket && strcasecmp(i.first.c_str(), "connection") == 0) {
                 continue;
+            }
+            if (!has_content_length && strcasecmp(i.first.c_str(), "content-length") == 0) {
+                has_content_length = true;
             }
             os << i.first << ": " << i.second << "\r\n";
         }
@@ -351,7 +399,11 @@ namespace http
             os << "connection: " << (m_close ? "close" : "keep-alive") << "\r\n";
         }
         if (!m_body.empty()) {
-            os << "content-length: " << m_body.size() << "\r\n\r\n" << m_body;
+            if (!has_content_length) {
+                os << "content-length: " << m_body.size() << "\r\n\r\n" << m_body;
+            } else {
+                os << "\r\n" << m_body;
+            }
         } else {
             os << "\r\n";
         }

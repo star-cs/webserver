@@ -9,7 +9,7 @@
 #include <string>
 #include <memory>
 #include "sylar/core/mutex.h"
-#include "sylar/io/db/fox_thread.h"
+#include "sylar/core/fox_thread.h"
 #include "sylar/core/common/singleton.h"
 
 namespace sylar
@@ -172,13 +172,13 @@ private:
         FoxRedis *rds;
         std::string cmd;
         FCtx *fctx;
-        //std::vector<std::string> parts;
-        //sylar::Scheduler* scheduler;
-        //sylar::Fiber::ptr fiber;
-        //ReplyPtr rpy;
+        // std::vector<std::string> parts;
+        // sylar::Scheduler* scheduler;
+        // sylar::Fiber::ptr fiber;
+        // ReplyPtr rpy;
         FoxThread *thread;
 
-        //Ctx::ptr ref;
+        // Ctx::ptr ref;
 
         Ctx(FoxRedis *rds);
         ~Ctx();
@@ -252,15 +252,15 @@ private:
         FoxRedisCluster *rds;
         FCtx *fctx;
         std::string cmd;
-        //std::vector<std::string> parts;
+        // std::vector<std::string> parts;
         FoxThread *thread;
-        //int cancel_count;
-        //int destory;
-        //int callback_count;
-        //sylar::RWMutex mutex;
+        // int cancel_count;
+        // int destory;
+        // int callback_count;
+        // sylar::RWMutex mutex;
 
-        //Ctx::ptr ref;
-        //Ctx::ptr tref;
+        // Ctx::ptr ref;
+        // Ctx::ptr tref;
         void cancelEvent();
 
         Ctx(FoxRedisCluster *rds);

@@ -4,7 +4,7 @@
 #include "sylar/core/library.h"
 #include "sylar/core/util/util.h"
 #include "sylar/core/log/log.h"
-#include "application.h"
+#include "sylar/core/application.h"
 
 namespace sylar
 {

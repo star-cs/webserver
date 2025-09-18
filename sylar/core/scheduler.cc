@@ -83,6 +83,17 @@ void Scheduler::setThis()
     t_scheduler = this;
 }
 
+void Scheduler::switchTo(int thread) {
+    SYLAR_ASSERT(Scheduler::GetThis() != nullptr);
+    if(Scheduler::GetThis() == this) {
+        if(thread == -1 || thread == sylar::GetThreadId()) {
+            return;
+        }
+    }
+    schedule(Fiber::GetThis(), thread);
+    Fiber::GetThis()->yield();
+}
+
 Scheduler::~Scheduler()
 {
     SYLAR_LOG_DEBUG(g_logger) << "Scheduler::~Scheduler()";

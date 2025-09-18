@@ -1,0 +1,43 @@
+#include "http2_server.h"
+#include "sylar/core/log/log.h"
+#include "http2_session.h"
+#include "sylar/net/http/servlet/config_servlet.h"
+#include "sylar/net/http/servlet/status_servlet.h"
+
+namespace sylar::http2
+{
+
+static sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
+
+Http2Server::Http2Server(sylar::IOManager *worker, sylar::IOManager *io_worker,
+                         sylar::IOManager *accept_worker)
+    : TcpServer(worker, io_worker, accept_worker)
+{
+    m_type = "http2";
+    m_dispatch = std::make_shared<http::ServletDispatch>();
+    m_dispatch->addServlet("/_/status", std::make_shared<http::StatusServlet>());
+    m_dispatch->addServlet("/_/config", std::make_shared<http::ConfigServlet>());
+}
+
+void Http2Server::setName(const std::string &v)
+{
+    TcpServer::setName(v);
+    m_dispatch->setDefault(std::make_shared<http::NotFoundServlet>(v));
+}
+
+void Http2Server::handleClient(Socket::ptr client)
+{
+    SYLAR_LOG_INFO(g_logger) << "Http2Server::handleClient" << *client;
+    sylar::http2::Http2Session::ptr session =
+        std::make_shared<sylar::http2::Http2Session>(client, this);
+    if (!session->handleShakeServer()) {
+        SYLAR_LOG_WARN(g_logger) << "http2 session handleShake fail, "
+                                 << session->getRemoteAddressString();
+        session->close();
+        return;
+    }
+    session->setWorker(m_worker);
+    session->start();
+}
+
+} // namespace sylar::http2

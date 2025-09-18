@@ -24,47 +24,49 @@
 #include <iostream>
 #include <boost/lexical_cast.hpp>
 #include <google/protobuf/message.h>
-#include "sylar/core/util/hash_util.h"
-#include "sylar/core/util/json_util.h"
+#include "hash_util.h"
+#include "json_util.h"
+// #include "sylar/util/trace.h"
+// #include "sylar/util/tracker.h"
 // #include "sylar/util/crypto_util.h"
 
 namespace sylar
 {
 
 /**
-  * @brief 返回当前线程的ID
-  */
+ * @brief 返回当前线程的ID
+ */
 pid_t GetThreadId();
 
 /**
-  * @brief 返回当前协程的ID
-  */
+ * @brief 返回当前协程的ID
+ */
 uint32_t GetFiberId();
 
 /**
-  * @brief 获取当前的调用栈
-  * @param[out] bt 保存调用栈
-  * @param[in] size 最多返回层数
-  * @param[in] skip 跳过栈顶的层数
-  */
+ * @brief 获取当前的调用栈
+ * @param[out] bt 保存调用栈
+ * @param[in] size 最多返回层数
+ * @param[in] skip 跳过栈顶的层数
+ */
 void Backtrace(std::vector<std::string> &bt, int size = 64, int skip = 1);
 
 /**
-  * @brief 获取当前栈信息的字符串
-  * @param[in] size 栈的最大层数
-  * @param[in] skip 跳过栈顶的层数
-  * @param[in] prefix 栈信息前输出的内容
-  */
+ * @brief 获取当前栈信息的字符串
+ * @param[in] size 栈的最大层数
+ * @param[in] skip 跳过栈顶的层数
+ * @param[in] prefix 栈信息前输出的内容
+ */
 std::string BacktraceToString(int size = 64, int skip = 2, const std::string &prefix = "");
 
 /**
-  * @brief 获取当前时间的毫秒
-  */
+ * @brief 获取当前时间的毫秒
+ */
 uint64_t GetCurrentMS();
 
 /**
-  * @brief 获取当前时间的微秒
-  */
+ * @brief 获取当前时间的微秒
+ */
 uint64_t GetCurrentUS();
 
 std::string ToUpper(const std::string &name);
@@ -89,9 +91,9 @@ public:
     static std::string Dirname(const std::string &filename);
     static std::string Basename(const std::string &filename);
     static bool OpenForRead(std::ifstream &ifs, const std::string &filename,
-                            std::ios_base::openmode mode);
+                            std::ios_base::openmode mode = std::ios_base::in);
     static bool OpenForWrite(std::ofstream &ofs, const std::string &filename,
-                             std::ios_base::openmode mode);
+                             std::ios_base::openmode mode = std::ios_base::out);
 };
 
 template <class V, class Map, class K>
@@ -235,6 +237,15 @@ void delete_array(T *v)
     }
 }
 
+template <class T, class... Args>
+inline std::shared_ptr<T> protected_make_shared(Args &&...args)
+{
+    struct Helper : T {
+        Helper(Args &&...args) : T(std::forward<Args>(args)...) {}
+    };
+    return std::make_shared<Helper>(std::forward<Args>(args)...);
+}
+
 template <class T>
 class SharedArray
 {
@@ -310,6 +321,7 @@ const char *TypeToName()
     return s_name;
 }
 
+typedef std::shared_ptr<google::protobuf::Message> PbMessagePtr;
 std::string PBToJsonString(const google::protobuf::Message &message);
 
 template <class Iter>
@@ -325,8 +337,22 @@ std::string Join(Iter begin, Iter end, const std::string &tag)
     return ss.str();
 }
 
+template <class Iter>
+std::string MapJoin(Iter begin, Iter end, const std::string &tag1 = "=",
+                    const std::string &tag2 = "&")
+{
+    std::stringstream ss;
+    for (Iter it = begin; it != end; ++it) {
+        if (it != begin) {
+            ss << tag2;
+        }
+        ss << it->first << "=" << it->second;
+    }
+    return ss.str();
+}
+
 //[begin, end)
-//if rt > 0, 存在,返回对应index
+// if rt > 0, 存在,返回对应index
 //   rt < 0, 不存在,返回对于应该存在的-(index + 1)
 template <class T>
 int BinarySearch(const T *arr, int length, const T &v)
@@ -475,6 +501,9 @@ void Slice(std::vector<std::vector<T> > &dst, const std::vector<T> &src, size_t 
         dst.push_back(tmp);
     }
 }
+
+std::string ToCamelString(const std::string &str, bool first_upper = true);
+std::string ToSnakeString(const std::string &str);
 
 } // namespace sylar
 

@@ -22,7 +22,7 @@ public:
     typedef std::shared_ptr<IFoxThread> ptr;
     typedef std::function<void()> callback;
 
-    virtual ~IFoxThread() {};
+    virtual ~IFoxThread(){};
     virtual bool dispatch(callback cb) = 0;
     virtual bool dispatch(uint32_t id, callback cb) = 0;
     virtual bool batchDispatch(const std::vector<callback> &cbs) = 0;

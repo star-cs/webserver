@@ -33,7 +33,7 @@ void FoxThread::read_cb(evutil_socket_t sock, short which, void *args)
         thread->m_working = true;
         for (auto it = callbacks.begin(); it != callbacks.end(); ++it) {
             if (*it) {
-                //SYLAR_ASSERT(thread == GetThis());
+                // SYLAR_ASSERT(thread == GetThis());
                 try {
                     (*it)();
                 } catch (std::exception &ex) {
@@ -61,7 +61,7 @@ FoxThread::FoxThread(const std::string &name, struct event_base *base)
 {
     int fds[2];
     if (evutil_socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == -1) {
-        //SYLAR_LOG_ERROR(g_logger) << "FoxThread init error";
+        // SYLAR_LOG_ERROR(g_logger) << "FoxThread init error";
         throw std::logic_error("thread init error");
     }
 
@@ -98,14 +98,14 @@ std::thread::id FoxThread::getId() const
 
 void *FoxThread::getData(const std::string &name)
 {
-    //Mutex::ReadLock lock(m_mutex);
+    // Mutex::ReadLock lock(m_mutex);
     auto it = m_datas.find(name);
     return it == m_datas.end() ? nullptr : it->second;
 }
 
 void FoxThread::setData(const std::string &name, void *v)
 {
-    //Mutex::WriteLock lock(m_mutex);
+    // Mutex::WriteLock lock(m_mutex);
     m_datas[name] = v;
 }
 
@@ -133,7 +133,7 @@ FoxThread::~FoxThread()
 void FoxThread::start()
 {
     if (m_thread) {
-        //SYLAR_LOG_ERROR(g_logger) << "FoxThread is running";
+        // SYLAR_LOG_ERROR(g_logger) << "FoxThread is running";
         throw std::logic_error("FoxThread is running");
     }
 
@@ -143,7 +143,7 @@ void FoxThread::start()
 
 void FoxThread::thread_cb()
 {
-    //std::cout << "FoxThread(" << m_name << "," << pthread_self() << ")" << std::endl;
+    // std::cout << "FoxThread(" << m_name << "," << pthread_self() << ")" << std::endl;
     setThis();
     pthread_setname_np(pthread_self(), m_name.substr(0, 15).c_str());
     if (m_initCb) {
@@ -157,12 +157,13 @@ bool FoxThread::dispatch(callback cb)
 {
     RWMutex::WriteLock lock(m_mutex);
     m_callbacks.push_back(cb);
-    //if(m_callbacks.size() > 1) {
-    //    std::cout << std::this_thread::get_id() << ":" << m_callbacks.size() << " " << m_name << std::endl;
-    //}
+    // if(m_callbacks.size() > 1) {
+    //     std::cout << std::this_thread::get_id() << ":" << m_callbacks.size() << " " << m_name <<
+    //     std::endl;
+    // }
     lock.unlock();
     uint8_t cmd = 1;
-    //write(m_write, &cmd, sizeof(cmd));
+    // write(m_write, &cmd, sizeof(cmd));
     if (send(m_write, &cmd, sizeof(cmd), 0) <= 0) {
         return false;
     }
@@ -199,13 +200,13 @@ void FoxThread::stop()
     m_callbacks.push_back(nullptr);
     if (m_thread) {
         uint8_t cmd = 0;
-        //write(m_write, &cmd, sizeof(cmd));
+        // write(m_write, &cmd, sizeof(cmd));
         send(m_write, &cmd, sizeof(cmd), 0);
     }
-    //if(m_data) {
-    //    delete m_data;
-    //    m_data = NULL;
-    //}
+    // if(m_data) {
+    //     delete m_data;
+    //     m_data = NULL;
+    // }
 }
 
 void FoxThread::join()
@@ -487,10 +488,10 @@ void FoxThreadManager::init()
             continue;
         }
         if (num == 1) {
-            m_threads[i.first] = FoxThread::ptr(new FoxThread(i.first));
+            m_threads[i.first] = std::make_shared<FoxThread>(i.first);
             SYLAR_LOG_INFO(g_logger) << "init thread : " << i.first;
         } else {
-            m_threads[i.first] = FoxThreadPool::ptr(new FoxThreadPool(num, name, advance));
+            m_threads[i.first] = std::make_shared<FoxThreadPool>(num, name, advance);
             SYLAR_LOG_INFO(g_logger)
                 << "init thread pool:" << name << " num:" << num << " advance:" << advance;
         }

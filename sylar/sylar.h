@@ -15,6 +15,9 @@
 #include "sylar/core/worker.h"
 #include "sylar/core/env.h"
 #include "sylar/core/signal/signal.h"
+#include "sylar/core/module.h"
+#include "sylar/core/application.h"
+
 #include "sylar/net/address.h"
 #include "sylar/net/socket.h"
 #include "sylar/net/bytearray.h"
@@ -31,5 +34,8 @@
 #include "sylar/core/daemon.h"
 #include "sylar/io/db/mysql.h"
 #include "sylar/io/db/redis.h"
+
+#include "sylar/net/http2/http2_connection.h"
+#include "sylar/net/http2/http2_server.h"
 
 #endif

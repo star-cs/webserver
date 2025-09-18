@@ -1,22 +1,30 @@
 #ifndef __SYLAR_UTIL_HASH_UTIL_H__
 #define __SYLAR_UTIL_HASH_UTIL_H__
 
+#include <sys/types.h>
+#include <sys/socket.h>
+
 #include <stdint.h>
 #include <string>
 #include <vector>
 
-namespace sylar {
+namespace sylar
+{
 
-uint32_t murmur3_hash(const char * str, const uint32_t & seed = 1060627423);
-uint64_t murmur3_hash64(const char * str, const uint32_t & seed = 1060627423, const uint32_t& seed2 = 1050126127);
-uint32_t murmur3_hash(const void* str, const uint32_t& size, const uint32_t & seed = 1060627423);
-uint64_t murmur3_hash64(const void* str, const uint32_t& size,  const uint32_t & seed = 1060627423, const uint32_t& seed2 = 1050126127);
-uint32_t quick_hash(const char * str);
-uint32_t quick_hash(const void* str, uint32_t size);
+uint32_t murmur3_hash(const char *str, const uint32_t &seed = 1060627423);
+uint64_t murmur3_hash64(const char *str, const uint32_t &seed = 1060627423);
+// uint64_t murmur3_hash64(const char * str, const uint32_t & seed = 1060627423, const uint32_t&
+// seed2 = 1050126127);
+uint32_t murmur3_hash(const void *str, const uint32_t &size, const uint32_t &seed = 1060627423);
+uint64_t murmur3_hash64(const void *str, const uint32_t &size, const uint32_t &seed = 1060627423);
+// uint64_t murmur3_hash64(const void* str, const uint32_t& size,  const uint32_t & seed =
+// 1060627423, const uint32_t& seed2 = 1050126127);
+uint32_t quick_hash(const char *str);
+uint32_t quick_hash(const void *str, uint32_t size);
 
-std::string base64decode(const std::string &src);
-std::string base64encode(const std::string &data);
-std::string base64encode(const void *data, size_t len);
+std::string base64decode(const std::string &src, bool url = false);
+std::string base64encode(const std::string &data, bool url = false);
+std::string base64encode(const void *data, size_t len, bool url = false);
 
 // Returns result in hex
 std::string md5(const std::string &data);
@@ -24,6 +32,7 @@ std::string sha1(const std::string &data);
 // Returns result in blob
 std::string md5sum(const std::string &data);
 std::string md5sum(const void *data, size_t len);
+std::string md5sum(const std::vector<iovec> &data);
 std::string sha0sum(const std::string &data);
 std::string sha0sum(const void *data, size_t len);
 std::string sha1sum(const std::string &data);
@@ -45,13 +54,15 @@ std::string data_from_hexstring(const std::string &data);
 
 std::string replace(const std::string &str, char find, char replaceWith);
 std::string replace(const std::string &str, char find, const std::string &replaceWith);
-std::string replace(const std::string &str, const std::string &find, const std::string &replaceWith);
+std::string replace(const std::string &str, const std::string &find,
+                    const std::string &replaceWith);
 
 std::vector<std::string> split(const std::string &str, char delim, size_t max = ~0);
 std::vector<std::string> split(const std::string &str, const char *delims, size_t max = ~0);
 
-std::string random_string(size_t len
-        ,const std::string& chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
-}
+std::string random_string(
+    size_t len,
+    const std::string &chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
+} // namespace sylar
 
 #endif

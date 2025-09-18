@@ -283,7 +283,7 @@ PointerAlignment: Right
 #     BasedOnStyle:    google
 
 # # 重新排版注释
-ReflowComments:  false
+ReflowComments:  true
 
 # # 重新排序#include
 # -- Never - 不进行排序

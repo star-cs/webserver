@@ -2,8 +2,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <openssl/evp.h>
-#include <openssl/types.h>
 #include <stdexcept>
 #include <string.h>
 #include <openssl/md5.h>
@@ -13,6 +11,11 @@ namespace sylar
 {
 
 #define ROTL(x, r) ((x << r) | (x >> (32 - r)))
+inline uint64_t rotl64(uint64_t x, int8_t r)
+{
+    return (x << r) | (x >> (64 - r));
+}
+#define ROTL64(x, y) rotl64(x, y)
 
 static inline uint32_t fmix32(uint32_t h)
 {
@@ -23,6 +26,24 @@ static inline uint32_t fmix32(uint32_t h)
     h ^= h >> 16;
 
     return h;
+}
+
+#define BIG_CONSTANT(x) (x##LLU)
+
+static inline uint64_t fmix64(uint64_t k)
+{
+    k ^= k >> 33;
+    k *= BIG_CONSTANT(0xff51afd7ed558ccd);
+    k ^= k >> 33;
+    k *= BIG_CONSTANT(0xc4ceb9fe1a85ec53);
+    k ^= k >> 33;
+
+    return k;
+}
+
+static inline uint64_t getblock64(const uint64_t *p, int i)
+{
+    return p[i];
 }
 
 uint32_t murmur3_hash(const void *data, const uint32_t &size, const uint32_t &seed)
@@ -110,6 +131,114 @@ uint32_t murmur3_hash(const char *str, const uint32_t &seed)
     return fmix32(h ^ len);
 }
 
+void murmur3_hash_x64_128(const void *key, const int len, const uint32_t seed, uint64_t out[2])
+{
+    const uint8_t *data = (const uint8_t *)key;
+    const int nblocks = len / 16;
+
+    uint64_t h1 = seed;
+    uint64_t h2 = seed;
+
+    const uint64_t c1 = BIG_CONSTANT(0x87c37b91114253d5);
+    const uint64_t c2 = BIG_CONSTANT(0x4cf5ad432745937f);
+
+    //----------
+    // body
+
+    const uint64_t *blocks = (const uint64_t *)(data);
+
+    for (int i = 0; i < nblocks; i++) {
+        uint64_t k1 = getblock64(blocks, i * 2 + 0);
+        uint64_t k2 = getblock64(blocks, i * 2 + 1);
+
+        k1 *= c1;
+        k1 = ROTL64(k1, 31);
+        k1 *= c2;
+        h1 ^= k1;
+
+        h1 = ROTL64(h1, 27);
+        h1 += h2;
+        h1 = h1 * 5 + 0x52dce729;
+
+        k2 *= c2;
+        k2 = ROTL64(k2, 33);
+        k2 *= c1;
+        h2 ^= k2;
+
+        h2 = ROTL64(h2, 31);
+        h2 += h1;
+        h2 = h2 * 5 + 0x38495ab5;
+    }
+
+    //----------
+    // tail
+
+    const uint8_t *tail = (const uint8_t *)(data + nblocks * 16);
+
+    uint64_t k1 = 0;
+    uint64_t k2 = 0;
+
+    switch (len & 15) {
+        case 15:
+            k2 ^= ((uint64_t)tail[14]) << 48;
+        case 14:
+            k2 ^= ((uint64_t)tail[13]) << 40;
+        case 13:
+            k2 ^= ((uint64_t)tail[12]) << 32;
+        case 12:
+            k2 ^= ((uint64_t)tail[11]) << 24;
+        case 11:
+            k2 ^= ((uint64_t)tail[10]) << 16;
+        case 10:
+            k2 ^= ((uint64_t)tail[9]) << 8;
+        case 9:
+            k2 ^= ((uint64_t)tail[8]) << 0;
+            k2 *= c2;
+            k2 = ROTL64(k2, 33);
+            k2 *= c1;
+            h2 ^= k2;
+
+        case 8:
+            k1 ^= ((uint64_t)tail[7]) << 56;
+        case 7:
+            k1 ^= ((uint64_t)tail[6]) << 48;
+        case 6:
+            k1 ^= ((uint64_t)tail[5]) << 40;
+        case 5:
+            k1 ^= ((uint64_t)tail[4]) << 32;
+        case 4:
+            k1 ^= ((uint64_t)tail[3]) << 24;
+        case 3:
+            k1 ^= ((uint64_t)tail[2]) << 16;
+        case 2:
+            k1 ^= ((uint64_t)tail[1]) << 8;
+        case 1:
+            k1 ^= ((uint64_t)tail[0]) << 0;
+            k1 *= c1;
+            k1 = ROTL64(k1, 31);
+            k1 *= c2;
+            h1 ^= k1;
+    }
+
+    //----------
+    // finalization
+
+    h1 ^= len;
+    h2 ^= len;
+
+    h1 += h2;
+    h2 += h1;
+
+    h1 = fmix64(h1);
+    h2 = fmix64(h2);
+
+    h1 += h2;
+    h2 += h1;
+
+    reinterpret_cast<uint64_t *>(out)[0] = h1;
+    reinterpret_cast<uint64_t *>(out)[1] = h2;
+}
+
 uint32_t quick_hash(const char *str)
 {
     unsigned int h = 0;
@@ -129,17 +258,20 @@ uint32_t quick_hash(const void *tmp, uint32_t size)
     return h;
 }
 
-uint64_t murmur3_hash64(const void *str, const uint32_t &size, const uint32_t &seed,
-                        const uint32_t &seed2)
+uint64_t murmur3_hash64(const void *str, const uint32_t &size, const uint32_t &seed)
 {
-    return (((uint64_t)murmur3_hash(str, size, seed)) << 32 | murmur3_hash(str, size, seed2));
+    uint64_t output[2];
+    murmur3_hash_x64_128(str, size, seed, output);
+    return output[0];
 }
-uint64_t murmur3_hash64(const char *str, const uint32_t &seed, const uint32_t &seed2)
+uint64_t murmur3_hash64(const char *str, const uint32_t &seed)
 {
-    return (((uint64_t)murmur3_hash(str, seed)) << 32 | murmur3_hash(str, seed2));
+    uint64_t output[2];
+    murmur3_hash_x64_128(str, strlen(str), seed, output);
+    return output[0];
 }
 
-std::string base64decode(const std::string &src)
+std::string base64decode(const std::string &src, bool url)
 {
     std::string result;
     result.resize(src.size() * 3 / 4);
@@ -147,6 +279,9 @@ std::string base64decode(const std::string &src)
 
     const char *ptr = src.c_str();
     const char *end = ptr + src.size();
+
+    const char c62 = url ? '-' : '+';
+    const char c63 = url ? '_' : '/';
 
     while (ptr < end) {
         int i = 0;
@@ -171,9 +306,9 @@ std::string base64decode(const std::string &src)
                 val = *ptr - 'a' + 26;
             } else if (*ptr >= '0' && *ptr <= '9') {
                 val = *ptr - '0' + 52;
-            } else if (*ptr == '+') {
+            } else if (*ptr == c62) {
                 val = 62;
-            } else if (*ptr == '/') {
+            } else if (*ptr == c63) {
                 val = 63;
             } else {
                 return ""; // invalid character
@@ -204,14 +339,15 @@ std::string base64decode(const std::string &src)
     return result;
 }
 
-std::string base64encode(const std::string &data)
+std::string base64encode(const std::string &data, bool url)
 {
-    return base64encode(data.c_str(), data.size());
+    return base64encode(data.c_str(), data.size(), url);
 }
 
-std::string base64encode(const void *data, size_t len)
+std::string base64encode(const void *data, size_t len, bool url)
 {
-    const char *base64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const char *base64 = url ? "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+                             : "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     std::string ret;
     ret.reserve(len * 4 / 3 + 2);
@@ -261,32 +397,26 @@ std::string sha1(const std::string &data)
 
 std::string md5sum(const void *data, size_t len)
 {
-    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
-    if (!mdctx) {
-        return "";
-    }
-
-    if (EVP_DigestInit_ex(mdctx, EVP_md5(), nullptr) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        return "";
-    }
-
-    if (EVP_DigestUpdate(mdctx, data, len) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        return "";
-    }
-
+    MD5_CTX ctx;
+    MD5_Init(&ctx);
+    MD5_Update(&ctx, data, len);
     std::string result;
     result.resize(MD5_DIGEST_LENGTH);
-    unsigned int digest_len = 0;
-    if (EVP_DigestFinal_ex(mdctx, (unsigned char *)&result[0], &digest_len) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        return "";
-    }
-
-    EVP_MD_CTX_free(mdctx);
-    result.resize(digest_len);
+    MD5_Final((unsigned char *)&result[0], &ctx);
     return result;
+}
+
+std::string md5sum(const std::vector<iovec> &data)
+{
+    MD5_CTX ctx;
+    MD5_Init(&ctx);
+    for (auto &i : data) {
+        MD5_Update(&ctx, i.iov_base, i.iov_len);
+    }
+    std::string result;
+    result.resize(MD5_DIGEST_LENGTH);
+    MD5_Final((unsigned char *)&result[0], &ctx);
+    return hexstring_from_data(result.c_str(), MD5_DIGEST_LENGTH);
 }
 
 std::string md5sum(const std::string &data)
@@ -296,33 +426,12 @@ std::string md5sum(const std::string &data)
 
 std::string sha0sum(const void *data, size_t len)
 {
-    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
-    if (!mdctx) {
-        return "";
-    }
-
-    // OpenSSL 不直接支持 SHA-0，需要使用 SHA-1 并手动处理差异
-    // 这里暂用 SHA-1 代替 SHA-0（实际应用中应避免 SHA-0）
-    if (EVP_DigestInit_ex(mdctx, EVP_sha1(), nullptr) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        return "";
-    }
-
-    if (EVP_DigestUpdate(mdctx, data, len) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        return "";
-    }
-
+    // SHA_CTX ctx;
+    // SHA_Init(&ctx);
+    // SHA_Update(&ctx, data, len);
     std::string result;
-    result.resize(SHA_DIGEST_LENGTH);
-    unsigned int digest_len = 0;
-    if (EVP_DigestFinal_ex(mdctx, (unsigned char *)&result[0], &digest_len) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        return "";
-    }
-
-    EVP_MD_CTX_free(mdctx);
-    result.resize(digest_len);
+    // result.resize(SHA_DIGEST_LENGTH);
+    // SHA_Final((unsigned char*)&result[0], &ctx);
     return result;
 }
 
@@ -333,31 +442,12 @@ std::string sha0sum(const std::string &data)
 
 std::string sha1sum(const void *data, size_t len)
 {
-    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
-    if (!mdctx) {
-        return "";
-    }
-
-    if (EVP_DigestInit_ex(mdctx, EVP_sha1(), nullptr) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        return "";
-    }
-
-    if (EVP_DigestUpdate(mdctx, data, len) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        return "";
-    }
-
+    SHA_CTX ctx;
+    SHA1_Init(&ctx);
+    SHA1_Update(&ctx, data, len);
     std::string result;
     result.resize(SHA_DIGEST_LENGTH);
-    unsigned int digest_len = 0;
-    if (EVP_DigestFinal_ex(mdctx, (unsigned char *)&result[0], &digest_len) != 1) {
-        EVP_MD_CTX_free(mdctx);
-        return "";
-    }
-
-    EVP_MD_CTX_free(mdctx);
-    result.resize(digest_len);
+    SHA1_Final((unsigned char *)&result[0], &ctx);
     return result;
 }
 
@@ -372,51 +462,51 @@ struct xorStruct {
     char operator()(char in) const { return in ^ m_value; }
 };
 
-template <const EVP_MD *(*EVPFunc)(), unsigned int L>
+template <class CTX, int (*Init)(CTX *), int (*Update)(CTX *, const void *, size_t),
+          int (*Final)(unsigned char *, CTX *), unsigned int B, unsigned int L>
 std::string hmac(const std::string &text, const std::string &key)
 {
-    EVP_PKEY *pkey =
-        EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, nullptr, (const unsigned char *)key.data(), key.size());
-    if (!pkey) {
-        return "";
+    std::string keyLocal = key;
+    CTX ctx;
+    if (keyLocal.size() > B) {
+        Init(&ctx);
+        Update(&ctx, keyLocal.c_str(), keyLocal.size());
+        keyLocal.resize(L);
+        Final((unsigned char *)&keyLocal[0], &ctx);
     }
-
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-    if (!ctx) {
-        EVP_PKEY_free(pkey);
-        return "";
-    }
-
+    keyLocal.append(B - keyLocal.size(), '\0');
+    std::string ipad = keyLocal, opad = keyLocal;
+    std::transform(ipad.begin(), ipad.end(), ipad.begin(), xorStruct(0x36));
+    std::transform(opad.begin(), opad.end(), opad.begin(), xorStruct(0x5c));
+    Init(&ctx);
+    Update(&ctx, ipad.c_str(), B);
+    Update(&ctx, text.c_str(), text.size());
     std::string result;
     result.resize(L);
-    size_t len = 0;
-
-    if (EVP_DigestSignInit(ctx, nullptr, EVPFunc(), nullptr, pkey) != 1
-        || EVP_DigestSignUpdate(ctx, text.data(), text.size()) != 1
-        || EVP_DigestSignFinal(ctx, (unsigned char *)&result[0], &len) != 1) {
-        EVP_MD_CTX_free(ctx);
-        EVP_PKEY_free(pkey);
-        return "";
-    }
-
-    EVP_MD_CTX_free(ctx);
-    EVP_PKEY_free(pkey);
-    result.resize(len);
+    Final((unsigned char *)&result[0], &ctx);
+    Init(&ctx);
+    Update(&ctx, opad.c_str(), B);
+    Update(&ctx, result.c_str(), L);
+    Final((unsigned char *)&result[0], &ctx);
     return result;
 }
+
 std::string hmac_md5(const std::string &text, const std::string &key)
 {
-    return hmac<EVP_md5, MD5_DIGEST_LENGTH>(text, key);
+    return hmac<MD5_CTX, &MD5_Init, &MD5_Update, &MD5_Final, MD5_CBLOCK, MD5_DIGEST_LENGTH>(text,
+                                                                                            key);
 }
 
 std::string hmac_sha1(const std::string &text, const std::string &key)
 {
-    return hmac<EVP_sha1, SHA_DIGEST_LENGTH>(text, key);
+    return hmac<SHA_CTX, &SHA1_Init, &SHA1_Update, &SHA1_Final, SHA_CBLOCK, SHA_DIGEST_LENGTH>(text,
+                                                                                               key);
 }
 
 std::string hmac_sha256(const std::string &text, const std::string &key)
 {
-    return hmac<EVP_sha256, SHA256_DIGEST_LENGTH>(text, key);
+    return hmac<SHA256_CTX, &SHA256_Init, &SHA256_Update, &SHA256_Final, SHA256_CBLOCK,
+                SHA256_DIGEST_LENGTH>(text, key);
 }
 
 void hexstring_from_data(const void *data, size_t len, char *output)

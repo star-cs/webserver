@@ -17,6 +17,7 @@ add_compile_options(
     -Wall
     -Wno-builtin-macro-redefined
     -Wno-deprecated
+    -Wno-error=deprecated-declarations
     -Werror
     -Wno-unused-function
 )
@@ -39,65 +40,17 @@ if(Protobuf_FOUND)
     include_directories(${Protobuf_INCLUDE_DIRS})
 endif()
 
-set(LIB_SRC
-    sylar/core/config/config.cc
-    sylar/core/config/config_init.cc
-    sylar/core/fd_manager.cc 
-    sylar/core/mutex.cc
-    sylar/core/memory/memorypool.cc
-    sylar/core/fiber.cc
-    sylar/core/hook.cc
-    sylar/core/iomanager.cc
-    sylar/core/common/buffermanager.cc
-    sylar/core/signal/signal.cc
-    sylar/core/log/log.cc
-    sylar/core/scheduler.cc
-    sylar/core/timermanager.cc
-    sylar/core/thread.cc
-    sylar/core/util/util.cc
-    sylar/core/worker.cc
-    sylar/core/env.cc
-    sylar/core/daemon.cc
-    sylar/core/application.cc
-    sylar/core/module.cc
-    sylar/core/library.cc
+file(GLOB_RECURSE CORE_FILES sylar/core/*.cc sylar/core/fcontext_asm/*.S)
+file(GLOB_RECURSE IO_FILES sylar/io/db/*.cc sylar/io/util/*.cc)
+file(GLOB_RECURSE NET_FILES sylar/net/*.cc sylar/net/http/http-parser/http_parser.c)
 
-    sylar/net/bytearray.cc
-    sylar/net/address.cc
-    sylar/net/socket.cc
-    sylar/net/tcp_server.cc
-    sylar/net/http/http-parser/http_parser.c
-    sylar/net/http/http.cc
-    sylar/net/http/http_parser.cc
-
-    sylar/net/stream.cc
-    sylar/net/streams/socket_stream.cc
-    sylar/net/http/http_session.cc
-    sylar/net/http/servlet.cc
-    sylar/net/http/http_server.cc
-    sylar/net/uri.cc
-    sylar/net/http/http_connection.cc
-    sylar/net/protocol.cc
-
-    sylar/core/fcontext_asm/jump_x86_64_sysv_elf_gas.S
-    sylar/core/fcontext_asm/make_x86_64_sysv_elf_gas.S
-
-    sylar/io/db/fox_thread.cc
-    sylar/io/db/redis.cc
-    sylar/io/db/mysql.cc
-    sylar/io/db/sqlite3.cc
-
-    # sylar/io/util/crypto_util.cc 
-    sylar/core/util/hash_util.cc 
-    sylar/core/util/json_util.cc 
-    )
-
-add_library(sylar SHARED ${LIB_SRC})
+add_library(sylar SHARED ${CORE_FILES} ${IO_FILES} ${NET_FILES})
 force_redefine_file_macro_for_sources(sylar)
 
 set(LIBS
     sylar
     dl
+    tbb
     pthread
     yaml-cpp
     jsoncpp
@@ -109,7 +62,6 @@ set(LIBS
     sqlite3
     tinyxml2
 )
-
 # sylar_add_executable(test_log "tests/core/test_log.cc" sylar "${LIBS}")
 # sylar_add_executable(test_config "tests/core/test_config.cc" sylar "${LIBS}")
 # sylar_add_executable(test_thread "tests/core/test_thread.cc" sylar "${LIBS}")
@@ -133,9 +85,10 @@ set(LIBS
 # sylar_add_executable(test_http_parser "tests/net/http/test_http_parser.cc" sylar "${LIBS}")
 # sylar_add_executable(test_http_server "tests/net/http/test_http_server.cc" sylar "${LIBS}")
 # sylar_add_executable(test_http_connection "tests/net/http/test_http_connection.cc" sylar "${LIBS}")
+sylar_add_executable(test_http2_client "tests/net/http2/http2_client.cc" sylar "${LIBS}")
+sylar_add_executable(test_http2_server "tests/net/http2/http2_server.cc" sylar "${LIBS}")
 
 # sylar_add_executable(test_mysql "tests/io/test_mysql.cc" sylar "${LIBS}")
-
 
 set(ORM_SRCS
     sylar/io/orm/orm.cc
@@ -152,8 +105,6 @@ set_target_properties(bin_sylar PROPERTIES OUTPUT_NAME "sylar")
 # add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/orm_out)
 # set(OLIBS ${LIBS} orm_data)
 # sylar_add_executable(test_orm "tests/io/test_orm.cc" orm_data "${OLIBS}")
-
-
 
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
