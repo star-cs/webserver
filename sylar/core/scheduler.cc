@@ -17,10 +17,10 @@ static Logger::ptr g_logger = SYLAR_LOG_NAME("system");
  * 当前线程的调度器，同一个调度器下的所有线程共享同一个实例
  * 1. use_caller = true，主线程、子线程池都会指向同一个
  * 2. use_caller = false，纯线程池模式，主线程不赋值，子线程池都会指向同一个
- * 
+ *
  * 目的：
  * 1. 让每个子线程能访问 同一个 调度器，也可以添加任务
- * 2. 
+ * 2.
  * 3. stop的时候，通过是否指向同一个，判断当前调用stop的 是不是 外部线程 （详细见 stop() 分析）
  */
 static thread_local Scheduler *t_scheduler = nullptr;
@@ -30,7 +30,7 @@ static thread_local Scheduler *t_scheduler = nullptr;
  * Fiber文件里：t_fiber当前运行的协程，t_thread_fiber主协程。
  * t_scheduler_fiber 调度协程。
  * t_thread_fiber <--> t_scheduler_fiber <--> t_fiber
- * 
+ *
  * 如果是Mian函数的主线程里，这个不是主协程，是子协程（充当调度协程）
  * 如果是线程池里的子线程里，这个是主协程
  */
@@ -46,15 +46,15 @@ Scheduler::Scheduler(size_t threads, bool use_caller, const std::string &name)
     if (use_caller) { // 主线程也添加到 调度
         threads--;
         sylar::Fiber::GetThis(); // 创建主协程，初始化 t_thread_fiber
-        SYLAR_ASSERT(
-            GetThis()
-            == nullptr) // 当前线程没有调度器（如果有了t_scheduler存在，意味着 主线程已经加入了 某一个调度器管理中）
+        SYLAR_ASSERT(GetThis() == nullptr) // 当前线程没有调度器（如果有了t_scheduler存在，意味着
+                                           // 主线程已经加入了 某一个调度器管理中）
         t_scheduler = this; // 设置当前线程的调度器
 
         /**
          * caller线程的主协程不会被线程的调度协程run进行调度，而且，线程的调度协程停止时，应该返回caller线程的主协程
-         * 在user caller情况下，把caller线程的主协程暂时保存起来，等调度协程结束时，再resume caller协程
-         * 
+         * 在user caller情况下，把caller线程的主协程暂时保存起来，等调度协程结束时，再resume
+         * caller协程
+         *
          * t_thread_fiber <--> t_scheduler_fiber <--> t_fiber(任务协程)
          */
         m_rootFiber.reset(new Fiber(std::bind(&Scheduler::run, this), 0, false));
@@ -83,10 +83,11 @@ void Scheduler::setThis()
     t_scheduler = this;
 }
 
-void Scheduler::switchTo(int thread) {
+void Scheduler::switchTo(int thread)
+{
     SYLAR_ASSERT(Scheduler::GetThis() != nullptr);
-    if(Scheduler::GetThis() == this) {
-        if(thread == -1 || thread == sylar::GetThreadId()) {
+    if (Scheduler::GetThis() == this) {
+        if (thread == -1 || thread == sylar::GetThreadId()) {
             return;
         }
     }
@@ -105,8 +106,8 @@ Scheduler::~Scheduler()
 
 /**
  * 开始调度：
- * 创建线程池~，每个线程都会目标运行 Scheduler::run，并且传入了this隐式指针。使得每个子线程里的 t_scheduler 都能指向 主线程 创建 的 scheduler
- * 保存线程池里的 线程id
+ * 创建线程池~，每个线程都会目标运行 Scheduler::run，并且传入了this隐式指针。使得每个子线程里的
+ * t_scheduler 都能指向 主线程 创建 的 scheduler 保存线程池里的 线程id
  */
 void Scheduler::start()
 {
@@ -168,14 +169,14 @@ void Scheduler::stop()
     m_stopping = true;
 
     /**
-     * 在 use_caller 模式下，caller主线程和线程池里的都会指向同一个 t_scheduler 
+     * 在 use_caller 模式下，caller主线程和线程池里的都会指向同一个 t_scheduler
      * 在 纯线程池 模型下，caller主线程 t_scheduler 不会被赋值。
      */
     if (m_useCaller) {
-        SYLAR_ASSERT(
-            GetThis() == this
-            && sylar::GetThreadId()
-                   == m_rootThread); //    确保当前是主线程，因为下面，我们需要 切换到主线程的调度协程
+        SYLAR_ASSERT(GetThis() == this
+                     && sylar::GetThreadId()
+                            == m_rootThread); //    确保当前是主线程，因为下面，我们需要
+                                              //    切换到主线程的调度协程
     } else {
         SYLAR_ASSERT(GetThis() != this); // 线程池里的都会指向 this，所以会排除
     }
@@ -192,7 +193,7 @@ void Scheduler::stop()
      * 在use caller情况下，use_caller主协程里的调度协程其实，一直没有机会运行。
      * 因为use_caller主协程一直在main函数里顺序执行语句。
      * 所有在stop时，切换到调度协程，让调度协程最后参与一下run，消费任务。
-     * 
+     *
      * m_rootFiber 保存的就是 use_caller 调度协程
      */
     if (m_rootFiber) {
@@ -222,32 +223,32 @@ void Scheduler::stop()
  *      子线程
  * 2. 非use_caller:
  *      子线程
- * 
+ *
  * 也就是这个，主要有两种协程调用 run ：1. start里创建的子线程；2. use_caller主线程里的调度协程。
- * 
- * 
+ *
+ *
  * run里的协程，不特别说明，都默认是 m_runInScheduler=true，任务协程
  * 例如：idle_fiber, cb_fiber, task_fiber（任务队列里的），子线程里的调度协程 t_scheduler_fiber
- * 
+ *
  * task_fiber->resume():
- *      swapcontext(&(Scheduler::GetMainFiber()->m_ctx), &m_mtx);        // 指定 与 t_scheduler_fiber 并交换
- * task_fiber->yield():
- *      swapcontext(&m_ctx, &(Scheduler::GetMainFiber()->m_ctx));
- * 
- * 
+ *      swapcontext(&(Scheduler::GetMainFiber()->m_ctx), &m_mtx);        // 指定 与
+ * t_scheduler_fiber 并交换 task_fiber->yield(): swapcontext(&m_ctx,
+ * &(Scheduler::GetMainFiber()->m_ctx));
+ *
+ *
  * 如果不是任务协程，m_runInScheduler=false
  * 例如：1. use_caller主线程里的主协程、调度协程 t_scheduler_fiber
  */
 void Scheduler::run()
 {
     SYLAR_LOG_DEBUG(g_logger) << "Scheduler::run() started, thread_id=" << sylar::GetThreadId();
+    set_hook_enable(true);
     setThis(); /// 每个子线程都会把 传入的Scheduler，保证每个任务线程指向 同一个 Scheduler
     if (sylar::GetThreadId() != m_rootThread) { /// 意味着当前执行run 的是start()里创建的子线程
         t_scheduler_fiber =
-            sylar::Fiber::GetThis()
-                .get(); // 此时的子线程 还没主协程，故，创建并赋值给 t_scheduler_fiber，作为当前线程的调度协程~
+            sylar::Fiber::GetThis().get(); // 此时的子线程 还没主协程，故，创建并赋值给
+                                           // t_scheduler_fiber，作为当前线程的调度协程~
     } // use_caller主线程，在调度器初始化时，已经把 主线程的调度协程，赋值给 t_scheduler_fiber
-    set_hook_enable(true);
     Fiber::ptr idle_fiber(new Fiber(std::bind(&Scheduler::idle, this))); // 空转 协程
     Fiber::ptr cb_fiber; // 用于封装 cb 仿函数任务的协程
 
@@ -289,14 +290,16 @@ void Scheduler::run()
 
         if (tickle_me) {
             // SYLAR_LOG_DEBUG(g_logger) << "Tickling other threads to process remaining tasks.";
-            tickle(); // 实际 tickle 不会通知，因为 只要 调度不停止，就会不断拿去 任务~ （这里是一个while(true){...}）
+            tickle(); // 实际 tickle 不会通知，因为 只要 调度不停止，就会不断拿去 任务~
+                      // （这里是一个while(true){...}）
         }
 
         if (task.fiber) {
             // resume协程，resume返回时，协程要么执行完了，要么半路yield了，总之这个任务就算完成了，活跃线程数减一
             // 分情况：
             // 1. 子线程，主协程（调度协程） --> 任务协程
-            // 2. use_caller线程，子协程（调度协程）--> 任务协程        再次强调，use_caller线程里的主协程并不操作任务
+            // 2. use_caller线程，子协程（调度协程）--> 任务协程
+            // 再次强调，use_caller线程里的主协程并不操作任务
             task.fiber->resume();
             --m_activeThreadCount;
             task.reset();

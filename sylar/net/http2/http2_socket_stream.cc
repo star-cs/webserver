@@ -65,9 +65,11 @@ bool Http2SocketStream::handleShakeClient()
     Frame::ptr frame = std::make_shared<Frame>();
     frame->header.type = (uint8_t)FrameType::SETTINGS;
     auto sf = std::make_shared<SettingsFrame>();
-    sf->items.emplace_back((uint8_t)SettingsFrame::Settings::ENABLE_PUSH, 0);           // 禁用服务器推送
-    sf->items.emplace_back((uint8_t)SettingsFrame::Settings::INITIAL_WINDOW_SIZE, 4194304);  // 设置初始窗口大小
-    sf->items.emplace_back((uint8_t)SettingsFrame::Settings::MAX_HEADER_LIST_SIZE, 10485760); // 设置最大头部列表大小
+    sf->items.emplace_back((uint8_t)SettingsFrame::Settings::ENABLE_PUSH, 0); // 禁用服务器推送
+    sf->items.emplace_back((uint8_t)SettingsFrame::Settings::INITIAL_WINDOW_SIZE,
+                           4194304); // 设置初始窗口大小
+    sf->items.emplace_back((uint8_t)SettingsFrame::Settings::MAX_HEADER_LIST_SIZE,
+                           10485760); // 设置最大头部列表大小
     frame->data = sf;
 
     // 处理发送设置并发送帧
@@ -254,7 +256,7 @@ AsyncSocketStream::Ctx::ptr Http2SocketStream::doRecv()
 {
     // ScopeTest xxx;
     // SYLAR_LOG_INFO(g_logger) << "=========== DoRecv ===========";
-    
+
     // 解析接收到的HTTP/2帧
     auto frame = m_codec->parseFrom(shared_from_this());
     if (!frame) {
@@ -297,7 +299,7 @@ AsyncSocketStream::Ctx::ptr Http2SocketStream::doRecv()
         }
         // 让流处理自己的帧
         stream->handleFrame(frame, m_isClient);
-        
+
         // 检查流状态
         if (stream->getState() == Http2Stream::State::CLOSED) {
             // 流关闭，处理关闭事件

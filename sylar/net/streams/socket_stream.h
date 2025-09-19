@@ -1,17 +1,27 @@
+/**
+ * @file socket_stream.h
+ * @brief Socket流式接口封装
+ * @author sylar.yin
+ * @email 564628276@qq.com
+ * @date 2019-06-06
+ * @copyright Copyright (c) 2019年 sylar.yin All rights reserved (www.sylar.top)
+ */
 #ifndef __SYLAR_SOCKET_STREAM_H__
 #define __SYLAR_SOCKET_STREAM_H__
 
-#include "../stream.h"
-#include "../socket.h"
+#include "sylar/net/stream.h"
+#include "sylar/net/socket.h"
 #include "sylar/core/mutex.h"
 #include "sylar/core/iomanager.h"
 
-namespace sylar {
+namespace sylar
+{
 
 /**
  * @brief Socket流
  */
-class SocketStream : public Stream {
+class SocketStream : public Stream
+{
 public:
     typedef std::shared_ptr<SocketStream> ptr;
 
@@ -37,7 +47,7 @@ public:
      *      @retval =0 socket被远端关闭
      *      @retval <0 socket错误
      */
-    virtual int read(void* buffer, size_t length) override;
+    virtual int read(void *buffer, size_t length) override;
 
     /**
      * @brief 读取数据
@@ -59,7 +69,7 @@ public:
      *      @retval =0 socket被远端关闭
      *      @retval <0 socket错误
      */
-    virtual int write(const void* buffer, size_t length) override;
+    virtual int write(const void *buffer, size_t length) override;
 
     /**
      * @brief 写入数据
@@ -80,24 +90,29 @@ public:
     /**
      * @brief 返回Socket类
      */
-    Socket::ptr getSocket() const { return m_socket;}
+    Socket::ptr getSocket() const { return m_socket; }
 
     /**
      * @brief 返回是否连接
      */
     bool isConnected() const;
+    bool checkConnected();
 
     Address::ptr getRemoteAddress();
     Address::ptr getLocalAddress();
     std::string getRemoteAddressString();
     std::string getLocalAddressString();
+
+    uint64_t getId() const { return m_id; }
+
 protected:
     /// Socket类
     Socket::ptr m_socket;
+    uint64_t m_id : 63;
     /// 是否主控
-    bool m_owner;
+    bool m_owner : 1;
 };
 
-}
+} // namespace sylar
 
 #endif
