@@ -158,16 +158,22 @@ std::string Column::getDefaultValueString() {
     if(m_default.empty()) {
         return "";
     }
+    // 对于数值类型直接返回数值字符串，不需要额外引号
     if(m_dtype <= TYPE_DOUBLE) {
         return m_default;
     }
+    // 对于字符串类型添加引号
     if(m_dtype <= TYPE_BLOB) {
         return "\"" + m_default + "\"";
     }
-    if(m_default == "current_timestamp") {
-        return "time(0)";
+    // 处理时间戳类型
+    if(m_dtype == TYPE_TIMESTAMP) {
+        if(m_default == "current_timestamp") {
+            return "time(0)";
+        }
+        return "sylar::Str2Time(\"" + m_default + "\")";
     }
-    return "sylar::Str2Time(\"" + m_default + "\")";
+    return m_default;
 }
 
 std::string Column::getSQLite3Default() {

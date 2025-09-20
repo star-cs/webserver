@@ -83,8 +83,8 @@ set(LIBS
 # sylar_add_executable(test_bytearray "tests/net/test_bytearray.cc" sylar "${LIBS}")
 # sylar_add_executable(test_tcp_server "tests/net/test_tcp_server.cc" sylar "${LIBS}")
 # sylar_add_executable(test_http_parser "tests/net/http/test_http_parser.cc" sylar "${LIBS}")
-# sylar_add_executable(test_http_server "tests/net/http/test_http_server.cc" sylar "${LIBS}")
-# sylar_add_executable(test_http_connection "tests/net/http/test_http_connection.cc" sylar "${LIBS}")
+sylar_add_executable(test_http_server "tests/net/http/test_http_server.cc" sylar "${LIBS}")
+sylar_add_executable(test_http_connection "tests/net/http/test_http_connection.cc" sylar "${LIBS}")
 sylar_add_executable(test_http2_client "tests/net/http2/http2_client.cc" sylar "${LIBS}")
 sylar_add_executable(test_http2_server "tests/net/http2/http2_server.cc" sylar "${LIBS}")
 
