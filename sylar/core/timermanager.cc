@@ -55,21 +55,20 @@ bool Timer::cancel()
 // 刷新设置定时器的执行时间
 bool Timer::refresh()
 {
-    // TimerManager::RWMutexType::WriteLock lock(m_manager->m_mutex);
-    // if(!m_cb){
-    //     return false;
-    // }
+    TimerManager::RWMutexType::WriteLock lock(m_manager->m_mutex);
+    if (!m_cb) {
+        return false;
+    }
 
-    // auto it = m_manager->m_timers.find(shared_from_this());
-    // if(it == m_manager->m_timers.end()){
-    //     return false;
-    // }
+    auto it = m_manager->m_timers.find(shared_from_this());
+    if (it == m_manager->m_timers.end()) {
+        return false;
+    }
 
-    // m_manager->m_timers.erase(it);
-    // m_next = GetCurrentTimeMS() + m_ms;
-    // m_manager->m_timers.insert(shared_from_this());
-    // return true;
-    return reset(m_ms, true);
+    m_manager->m_timers.erase(it);
+    m_next = sylar::GetCurrentMS() + m_ms;
+    m_manager->m_timers.insert(shared_from_this());
+    return true;
 }
 
 // 重置定时器事件
@@ -113,7 +112,7 @@ TimerManager::~TimerManager()
 
 Timer::ptr TimerManager::addTimer(uint64_t ms, std::function<void()> cb, bool recurring)
 {
-    Timer::ptr timer(new Timer(ms, cb, recurring, this));
+    Timer::ptr timer = sylar::protected_make_shared<Timer>(ms, cb, recurring, this);
     RWMutexType::WriteLock lock(m_mutex);
     addTimer(timer, lock);
     return timer;
@@ -171,12 +170,16 @@ void TimerManager::listExpiredCb(std::vector<std::function<void()> > &cbs)
     }
 
     RWMutexType::WriteLock lock(m_mutex);
+    if (m_timers.empty()) {
+        return;
+    }
+
     bool rollover = detectClockRollover(now_ms);
     if (!rollover && ((*m_timers.begin())->m_next > now_ms)) {
         return;
     }
 
-    Timer::ptr now_timer(new Timer(now_ms));
+    Timer::ptr now_timer = sylar::protected_make_shared<Timer>(now_ms);
     // 获取到第一个 发生时间 < 现在。即需要执行的事件
     // 如果系统时间被往前调整了 1个小时，就把全部定时器的事件 返回。
     // 这个就比较粗暴了~

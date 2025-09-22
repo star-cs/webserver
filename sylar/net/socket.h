@@ -185,7 +185,7 @@ public:
      * @result 返回监听是否成功
      * @pre 必须先 bind 成功
      */
-    virtual bool listen(int backlog = SOMAXCONN);
+    virtual bool listen(int backlog = 65535);
 
     /**
      * @brief 关闭socket

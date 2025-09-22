@@ -30,7 +30,8 @@ class Scheduler
 {
 public:
     typedef std::shared_ptr<Scheduler> ptr;
-    typedef Mutex MutexType;
+    // typedef MutexRWMutexType;
+    typedef RWSpinlock RWMutexType;
 
     /**
      * @brief 创建调度器
@@ -83,12 +84,33 @@ public:
         }
         bool need_tickle = false;
         {
-            MutexType::Lock lock(m_mutex);
+            RWMutexType::WriteLock lock(m_mutex);
             need_tickle = scheduleNoLock(fc, thread);
         }
 
         if (need_tickle) {
             tickle(); // 唤醒idle协程
+        }
+    }
+
+    /**
+     * @brief 批量调度协程
+     * @param[in] begin 协程数组的开始
+     * @param[in] end 协程数组的结束
+     */
+    template <class InputIterator>
+    void schedule(InputIterator begin, InputIterator end)
+    {
+        bool need_tickle = false;
+        {
+            RWMutexType::WriteLock lock(m_mutex);
+            while (begin != end) {
+                need_tickle = scheduleNoLock(&*begin, -1) || need_tickle;
+                ++begin;
+            }
+        }
+        if (need_tickle) {
+            tickle();
         }
     }
 
@@ -105,8 +127,6 @@ public:
     bool hasIdleThreads() { return m_idleThreadCount > 0; }
 
     size_t threadCount() const { return m_threadCount; }
-
-    void adjustThreads(size_t new_threads);
 
     size_t getTasksSize() const { return m_tasks.size(); }
 
@@ -169,22 +189,15 @@ private:
         std::function<void()> cb;
         int thread;
 
-        ScheduleTask(Fiber::ptr f, int thr)
-        {
-            fiber = f;
-            thread = thr;
-        }
-        ScheduleTask(Fiber::ptr *f, int thr)
-        {
-            fiber.swap(*f);
-            thread = thr;
-        }
-        ScheduleTask(std::function<void()> f, int thr)
-        {
-            cb = f;
-            thread = thr;
-        }
-        ScheduleTask() { thread = -1; }
+        ScheduleTask(Fiber::ptr f, int thr) : fiber(f), thread(thr) {}
+
+        ScheduleTask(Fiber::ptr *f, int thr) : thread(thr) { fiber.swap(*f); }
+
+        ScheduleTask(std::function<void()> f, int thr) : cb(f), thread(thr) {}
+
+        ScheduleTask(std::function<void()> *f, int thr) : thread(thr) { cb.swap(*f); }
+
+        ScheduleTask() : thread(-1) {}
 
         void reset()
         {
@@ -198,7 +211,7 @@ private:
     /// 协程调度器名称
     std::string m_name;
     /// 互斥锁
-    MutexType m_mutex;
+    RWMutexType m_mutex;
     /// 线程池
     std::vector<Thread::ptr> m_threads;
     /// 任务队列
@@ -220,7 +233,9 @@ private:
     int m_rootThread = 0;
 
     /// 是否正在停止
-    bool m_stopping = false;
+    bool m_stopping = true;
+    /// 是否自动停止
+    bool m_autoStop = false;
 };
 
 class SchedulerSwitcher : public Noncopyable

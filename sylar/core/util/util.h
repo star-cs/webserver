@@ -237,6 +237,7 @@ void delete_array(T *v)
     }
 }
 
+// 在T的构造函数不可被外部直接访问时，仍然能利用
 template <class T, class... Args>
 inline std::shared_ptr<T> protected_make_shared(Args &&...args)
 {

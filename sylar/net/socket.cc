@@ -277,7 +277,28 @@ bool Socket::close()
 int Socket::send(const void *buffer, size_t length, int flags)
 {
     if (isConnected()) {
-        return ::send(m_sock, buffer, length, flags);
+        size_t total_sent = 0;
+        const char* data = static_cast<const char*>(buffer);
+        
+        // 循环发送，直到所有数据都发送完毕
+        while (total_sent < length) {
+            int ret = ::send(m_sock, data + total_sent, length - total_sent, flags);
+            if (ret <= 0) {
+                // 处理发送错误
+                if (errno == EINTR) {
+                    // 被信号中断，继续发送
+                    continue;
+                } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    // 非阻塞模式下缓冲区已满，先返回已发送的字节数
+                    return total_sent;
+                }
+                // 其他错误，返回-1
+                return -1;
+            }
+            total_sent += ret;
+        }
+        // 全部发送完毕，返回发送的字节数
+        return total_sent;
     }
     return -1;
 }

@@ -31,17 +31,19 @@ public:
     bool reset(uint64_t ms, bool from_now);
 
     // 构造函数定义为私有方法，只能通过TimerManager类来创建Timer对象
-private:
-    /**
-     * ms 定时器执行的回调事件
-     * cb 回调函数
-     * recurring 是否循环执行
-     * manager 定时器管理器
+protected:
+     /**
+     * @brief 构造函数
+     * @param[in] ms 定时器执行间隔时间
+     * @param[in] cb 回调函数
+     * @param[in] recurring 是否循环
+     * @param[in] manager 定时器管理器
      */
     Timer(uint64_t ms, std::function<void()> cb, bool recurring, TimerManager *manager);
 
     /**
-     * next 执行的时间戳（毫秒）（绝对时间）
+     * @brief 构造函数
+     * @param[in] next 执行的时间戳(毫秒)
      */
     Timer(uint64_t next);
 
@@ -99,7 +101,7 @@ public:
 
     /**
      * 检测服务器时间是否被调后了
-     * 
+     *
      */
     bool detectClockRollover(uint64_t now_ms);
 
@@ -110,8 +112,8 @@ protected:
 
     /**
      * @brief 将定时器添加到管理器中
-     * 
-     * 在这里添加了 m_tickled 
+     *
+     * 在这里添加了 m_tickled
      * 保证当事件处于front，只会执行一次 onTimerInsertedAtFront()，唤醒 epoll_wait，处理事件~
      */
     void addTimer(Timer::ptr val, RWMutexType::WriteLock &lock);
