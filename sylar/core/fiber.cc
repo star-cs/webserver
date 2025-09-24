@@ -1,4 +1,5 @@
 #include <atomic>
+#include <memory>
 
 #include "sylar/core/fiber.h"
 #include "sylar/core/log/log.h"
@@ -148,7 +149,7 @@ Fiber::ptr Fiber::GetThis()
     }
 
     // 如果 当前没有协程，那么就创建第一个协程。
-    Fiber::ptr main_fiber(new Fiber);
+    Fiber::ptr main_fiber(new Fiber); // std::make_shared 不能访问 私有 构造
     SYLAR_ASSERT(t_fiber == main_fiber.get());
     t_thread_fiber = main_fiber;
     return t_fiber->shared_from_this();

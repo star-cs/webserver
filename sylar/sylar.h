@@ -38,4 +38,9 @@
 #include "sylar/net/http2/http2_connection.h"
 #include "sylar/net/http2/http2_server.h"
 
+#include "sylar/net/rock/rock_server.h"
+#include "sylar/net/rock/rock_protocol.h"
+#include "sylar/net/rock/rock_stream.h"
+#include "sylar/net/streams/zlib_stream.h"
+
 #endif

@@ -40,16 +40,18 @@ static sylar::ConfigVar<int>::ptr g_tcp_connect_timeout =
     XX(ioctl)                                                                                      \
     XX(getsockopt)                                                                                 \
     XX(setsockopt)
-void hook_init()
+bool hook_init()
 {
     static bool is_inited = false;
     if (is_inited) {
-        return;
+        return true;
     }
-    //保存原函数：hook_init() 通过 dlsym(RTLD_NEXT, "sleep") 获取系统原版 sleep 函数的地址，保存到 sleep_f 指针
+    //保存原函数：hook_init() 通过 dlsym(RTLD_NEXT, "sleep") 获取系统原版 sleep 函数的地址，保存到
+    // sleep_f 指针
 #define XX(name) name##_f = (name##_fun)dlsym(RTLD_NEXT, #name);
     HOOK_FUN(XX);
 #undef XX
+    return true;
 }
 
 static uint64_t s_connect_timeout = -1;
@@ -86,13 +88,13 @@ struct timer_info {
 
 /**
  * 重点 ！！！
- * 
+ *
  * 模板函数，通用的 read-write api hook 操作
- * 
+ *
  * Args&& 万能引用，根据传入实参自动推导
- * 
+ *
  * 这里Args，可能是左值，也可能是右值
- * 
+ *
  * std::forward 保持参数的原始值类别
  */
 template <typename OriginFun, typename... Args>
@@ -123,7 +125,7 @@ static ssize_t do_io(int fd, OriginFun fun, const char *hook_fun_name, uint32_t 
 
     // 接下来，socket情况
     uint64_t to = ctx->getTimeout(timeout_so);
-    std::shared_ptr<timer_info> tinfo(new timer_info);
+    std::shared_ptr<timer_info> tinfo = std::make_shared<timer_info>();
 
 retry:
     // SYLAR_LOG_DEBUG(g_logger) << hook_fun_name << " event " << event;
@@ -133,7 +135,7 @@ retry:
         n = fun(fd, std::forward<Args>(args)...);
     }
     if (n == -1 && errno == EAGAIN) { // 非阻塞操作无法立即完成
-        SYLAR_LOG_DEBUG(g_logger) << "hook doing " << hook_fun_name << " event " << event;
+        // SYLAR_LOG_DEBUG(g_logger) << "hook doing " << hook_fun_name << " event " << event;
         sylar::IOManager *iom = sylar::IOManager::GetThis();
         sylar::Timer::ptr timer;
         std::weak_ptr<timer_info> winfo(tinfo);
@@ -156,13 +158,13 @@ retry:
         // 正式 注册事件。
         // 没有传入cb，相当于把当前协程传入。当事件触发，会回到这个协程继续运行。 妙 ~
         int rt = iom->addEvent(fd, (sylar::IOManager::Event)event);
-        if (rt != 0) { //添加失败
+        if (SYLAR_UNLIKELY(rt)) { //添加失败
             SYLAR_LOG_ERROR(g_logger)
                 << hook_fun_name << " addEvent(" << fd << ", " << event << ")";
             if (timer) {         //超时删除事件的定时器不需要了。
                 timer->cancel(); // 删除定时器的权利 交给了定时器
             }
-            return rt;
+            return -1;
         } else { //添加成功
             sylar::Fiber::GetThis()->yield();
             // 如果再次回到这里，
@@ -198,23 +200,24 @@ extern "C"
         sylar::Fiber::ptr fiber = sylar::Fiber::GetThis();
         sylar::IOManager *iom = sylar::IOManager::GetThis();
         /**
-     * C++规定成员函数指针的类型包含类信息，即使存在继承关系，&IOManager::schedule 和 &Scheduler::schedule 属于不同类型。
-     * 通过强制转换，使得类型系统接受子类对象iom调用基类成员函数的合法性。
-     * 
-     * schedule是模板函数
-     * 子类继承的是模板的实例化版本，而非原始模板
-     * 直接取地址会导致函数签名包含子类类型信息
-     * 
-     * std::bind 的类型安全机制
-     * bind要求成员函数指针类型与对象类型严格匹配。当出现以下情况时必须转换：
-     * 
-     * 总结，当需要绑定 子类对象调用父类模板成员函数，父类函数需要强转成父类
-     * (存在多继承或虚继承导致this指针偏移)
-     * 
-     * 或者
-     * std::bind(&Scheduler::schedule, static_cast<Scheduler*>(iom), fiber, -1)
-     * 
-     */
+         * C++规定成员函数指针的类型包含类信息，即使存在继承关系，&IOManager::schedule 和
+         * &Scheduler::schedule 属于不同类型。
+         * 通过强制转换，使得类型系统接受子类对象iom调用基类成员函数的合法性。
+         *
+         * schedule是模板函数
+         * 子类继承的是模板的实例化版本，而非原始模板
+         * 直接取地址会导致函数签名包含子类类型信息
+         *
+         * std::bind 的类型安全机制
+         * bind要求成员函数指针类型与对象类型严格匹配。当出现以下情况时必须转换：
+         *
+         * 总结，当需要绑定 子类对象调用父类模板成员函数，父类函数需要强转成父类
+         * (存在多继承或虚继承导致this指针偏移)
+         *
+         * 或者
+         * std::bind(&Scheduler::schedule, static_cast<Scheduler*>(iom), fiber, -1)
+         *
+         */
         iom->addTimer(seconds * 1000,
                       std::bind((void(sylar::Scheduler::*)(sylar::Fiber::ptr, int thread))
                                     & sylar::IOManager::schedule,
@@ -272,6 +275,11 @@ extern "C"
                              uint64_t timeout_ms)
     {
         if (!sylar::t_hook_enable) {
+            struct timeval tv {
+                int(timeout_ms / 1000), int(timeout_ms % 1000 * 1000)
+            };
+            socklen_t optlen = sizeof(tv);
+            setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, optlen);
             return connect_f(fd, addr, addrlen);
         }
 
@@ -291,11 +299,11 @@ extern "C"
         }
 
         /**
-     * 非阻塞connect调用会立即返回EINPROGRESS错误码，表示连接正在建立
-     * 此时不需要也不能重复调用connect，否则可能触发EALREADY错误
-     * 通过等待WRITE事件即可判断连接是否建立完成
-     * 
-     */
+         * 非阻塞connect调用会立即返回EINPROGRESS错误码，表示连接正在建立
+         * 此时不需要也不能重复调用connect，否则可能触发EALREADY错误
+         * 通过等待WRITE事件即可判断连接是否建立完成
+         *
+         */
         int n = connect_f(fd, addr, addrlen);
         if (n == 0) {
             return 0;
@@ -305,7 +313,7 @@ extern "C"
 
         sylar::IOManager *iom = sylar::IOManager::GetThis();
         sylar::Timer::ptr timer;
-        std::shared_ptr<timer_info> tinfo(new timer_info);
+        std::shared_ptr<timer_info> tinfo = std::make_shared<timer_info>();
         std::weak_ptr<timer_info> winfo(tinfo);
 
         if (timeout_ms != (uint64_t)-1) {
@@ -364,7 +372,14 @@ extern "C"
             do_io(s, accept_f, "accept", sylar::IOManager::Event::READ, SO_RCVTIMEO, addr, addrlen);
 
         if (fd != -1) {
-            sylar::FdMgr::GetInstance()->get(fd, true);
+            sylar::FdCtx::ptr ctx = sylar::FdMgr::GetInstance()->get(fd, true);
+            if (!ctx) {
+                SYLAR_LOG_WARN(g_logger) << "Failed to get FdCtx for accepted socket: " << fd;
+            }
+        } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            // 记录非阻塞相关的错误
+            SYLAR_LOG_DEBUG(g_logger)
+                << "accept failed with errno: " << errno << ", " << strerror(errno);
         }
         return fd;
     }
@@ -372,6 +387,8 @@ extern "C"
     // read
     ssize_t read(int fd, void *buf, size_t count)
     {
+        static const bool _sylar_hook_init_ = sylar::hook_init();
+        (void)_sylar_hook_init_;
         return do_io(fd, read_f, "read", sylar::IOManager::Event::READ, SO_RCVTIMEO, buf, count);
     }
 
@@ -399,7 +416,7 @@ extern "C"
                      flags);
     }
 
-    //write
+    // write
     ssize_t write(int fd, const void *buf, size_t count)
     {
         return do_io(fd, write_f, "write", sylar::IOManager::Event::WRITE, SO_SNDTIMEO, buf, count);

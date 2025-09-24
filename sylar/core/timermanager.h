@@ -73,7 +73,7 @@ class TimerManager
     friend class Timer;
 
 public:
-    typedef RWMutex RWMutexType;
+    typedef RWSpinlock RWMutexType;
 
     TimerManager();
 

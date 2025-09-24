@@ -20,7 +20,7 @@ public:
     /// 数据类型定义（使用智能指针）
     typedef std::shared_ptr<T> data_type;
     /// 互斥锁类型定义
-    typedef sylar::Spinlock MutexType;
+    typedef Spinlock MutexType;
 
     /**
      * @brief 向队列尾部添加元素

@@ -60,7 +60,7 @@ private:
 class FdManager
 {
 public:
-    typedef RWMutex RWMutexType;
+    typedef RWSpinlock RWMutexType;
 
     FdManager();
 

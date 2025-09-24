@@ -3,6 +3,7 @@
 #include <unordered_map>
 
 #include "scheduler.h"
+#include "sylar/core/mutex.h"
 #include "sylar/core/timermanager.h"
 
 namespace sylar {
@@ -10,7 +11,7 @@ namespace sylar {
 class IOManager : public Scheduler , public TimerManager{
 public:
     typedef std::shared_ptr<IOManager> ptr;
-    typedef RWMutex RWMutexType;
+    typedef RWSpinlock RWMutexType;
 
     /**
      * IO事件，继承 epoll事件的定义
@@ -31,7 +32,7 @@ private:
      * 
      */
     struct FdContext{
-        typedef Mutex MutexType;
+        typedef Spinlock MutexType;
 
         struct EventContext{
             ///执行事件回调的调度器

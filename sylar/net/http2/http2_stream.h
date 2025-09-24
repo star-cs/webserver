@@ -351,7 +351,7 @@ class Http2StreamManager
 {
 public:
     typedef std::shared_ptr<Http2StreamManager> ptr; ///< 智能指针类型定义
-    typedef sylar::RWSpinlock RWMutexType; ///< 读写锁类型定义
+    typedef RWSpinlock RWMutexType; ///< 读写锁类型定义
 
     /**
      * @brief 根据流 ID 获取流对象

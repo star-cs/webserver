@@ -59,7 +59,9 @@ public:
     virtual bool parseFromByteArray(ByteArray::ptr bytearray) override;
 
 protected:
+    // m_sn 表示请求的序列号（Sequence Number），用于唯一标识一次请求，便于请求-响应的匹配
     uint32_t m_sn;
+    // m_cmd 表示请求的命令字（Command），用于区分不同的业务操作类型
     uint32_t m_cmd;
 };
 
@@ -84,10 +86,10 @@ public:
     virtual bool parseFromByteArray(ByteArray::ptr bytearray) override;
 
 protected:
-    uint32_t m_sn;
-    uint32_t m_cmd;
-    uint32_t m_result;
-    std::string m_resultStr;
+    uint32_t m_sn; // 响应对应的请求序列号（Sequence Number），用于关联请求和响应
+    uint32_t m_cmd;          // 响应对应的命令字（Command），标识业务操作类型
+    uint32_t m_result;       // 业务处理结果码，0 通常表示成功，非0为错误码
+    std::string m_resultStr; // 结果描述字符串，通常用于错误信息或结果说明
 };
 
 class Notify : public Message
@@ -103,6 +105,7 @@ public:
     virtual bool parseFromByteArray(ByteArray::ptr bytearray) override;
 
 protected:
+    // m_notify 表示通知类型或通知码，用于标识不同的通知消息
     uint32_t m_notify;
 };
 

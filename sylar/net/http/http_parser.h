@@ -22,6 +22,8 @@ namespace http
          */
         HttpRequestParser();
 
+        uint64_t getContentLength();
+
         /**
          * @brief 解析协议
          * @param[in, out] data 协议文本内存

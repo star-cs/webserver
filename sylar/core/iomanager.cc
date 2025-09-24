@@ -182,7 +182,7 @@ int IOManager::addEvent(int fd, IOManager::Event event, std::function<void()> cb
     FdContext::MutexType::Lock lock2(fd_ctx->mutex);
     if (SYLAR_UNLIKELY(fd_ctx->events & event)) {
         SYLAR_LOG_ERROR(g_logger) << "addEvent assert fd=" << fd << " event=" << (EPOLL_EVENTS)event
-                                  << "原本的 fd_ctx->events=" << (EPOLL_EVENTS)fd_ctx->events;
+                                  << " fd_ctx.event=" << (EPOLL_EVENTS)fd_ctx->events;
         SYLAR_ASSERT(!(fd_ctx->events & event));
     }
 
@@ -417,7 +417,7 @@ void IOManager::idle()
         do {
             static const int MAX_TIMEOUT = 5000;
             if (next_timeout != ~0ull) {
-                next_timeout = std::min((int)next_timeout, MAX_TIMEOUT);
+                next_timeout = (int)next_timeout > MAX_TIMEOUT ? MAX_TIMEOUT : next_timeout;
             } else {
                 next_timeout = MAX_TIMEOUT;
             }
@@ -462,7 +462,7 @@ void IOManager::idle()
             if (event.events & (EPOLLERR | EPOLLHUP)) {
                 // 过滤掉当前fd实际关注的事件类型 （如 READ / WRITE）
                 // 确保只触发已注册的事件回调
-                event.events |= (EPOLLERR | EPOLLHUP) & fd_ctx->events;
+                event.events |= (EPOLLIN | EPOLLOUT) & fd_ctx->events;
             }
 
             int real_events = NONE;
@@ -485,8 +485,10 @@ void IOManager::idle()
 
             int rt2 = epoll_ctl(m_epfd, op, fd_ctx->fd, &event);
             if (rt2) {
-                SYLAR_LOG_ERROR(g_logger) << "epoll_ctl failed, fd=" << fd_ctx->fd
-                                          << ", errno=" << errno << ", errstr=" << strerror(errno);
+                SYLAR_LOG_ERROR(g_logger)
+                    << "epoll_ctl(" << m_epfd << ", " << (EpollCtlOp)op << ", " << fd_ctx->fd
+                    << ", " << (EPOLL_EVENTS)event.events << "):" << rt2 << " (" << errno << ") ("
+                    << strerror(errno) << ")";
                 continue;
             }
 

@@ -2,6 +2,7 @@
 #include "sylar/core/log/log.h"
 #include "sylar/net/bytearray.h"
 #include "huffman.h"
+#include <memory>
 
 namespace sylar::http2
 {
@@ -200,7 +201,7 @@ int HPack::WriteString(ByteArray::ptr ba, const std::string &str, bool h)
  */
 int HPack::parse(std::string &data)
 {
-    ByteArray::ptr ba(new sylar::ByteArray(&data[0], data.size(), false));
+    ByteArray::ptr ba = std::make_shared<ByteArray>(&data[0], data.size(), false);
     return parse(ba, data.size());
 }
 
@@ -359,7 +360,7 @@ int HPack::pack(HeaderField *header, ByteArray::ptr ba)
  */
 int HPack::pack(const std::vector<std::pair<std::string, std::string> > &headers, std::string &out)
 {
-    ByteArray::ptr ba(new ByteArray);
+    ByteArray::ptr ba = std::make_shared<ByteArray>();  
     int rt = pack(headers, ba);
     ba->setPosition(0);
     ba->toString().swap(out);

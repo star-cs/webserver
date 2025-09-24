@@ -1,4 +1,6 @@
 #include "frame.h"
+#include "sylar/net/bytearray.h"
+#include <memory>
 #include <sylar/core/log/log.h>
 #include <sstream>
 
@@ -563,7 +565,7 @@ Frame::ptr FrameCodec::parseFrom(Stream::ptr stream)
 {
     try {
         Frame::ptr frame = std::make_shared<Frame>();
-        ByteArray::ptr ba(new ByteArray);  
+        ByteArray::ptr ba = std::make_shared<ByteArray>();  
         // 真正在这里 调用 stream 读取数据
         int rt = stream->readFixSize(ba, FrameHeader::SIZE);
         if (rt <= 0) {
@@ -674,7 +676,7 @@ Frame::ptr FrameCodec::parseFrom(Stream::ptr stream)
 int32_t FrameCodec::serializeTo(Stream::ptr stream, Frame::ptr frame)
 {
     SYLAR_LOG_DEBUG(g_logger) << "serializeTo " << frame->toString();
-    ByteArray::ptr ba(new ByteArray);
+    ByteArray::ptr ba = std::make_shared<ByteArray>();  
     frame->header.writeTo(ba);
     if (frame->data) {
         if (!frame->data->writeTo(ba, frame->header)) {

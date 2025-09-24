@@ -4,25 +4,16 @@
 #include "sylar/core/library.h"
 #include "sylar/core/util/util.h"
 #include "sylar/core/log/log.h"
-#include "sylar/core/application.h"
+#include "application.h"
 
 namespace sylar
 {
 
-// 模块路径配置变量
 static sylar::ConfigVar<std::string>::ptr g_module_path =
     Config::Lookup("module.path", std::string("module"), "module path");
 
-// 系统日志记录器
 static sylar::Logger::ptr g_logger = SYLAR_LOG_NAME("system");
 
-/**
- * @brief 构造函数
- * @param name 模块名称
- * @param version 模块版本
- * @param filename 模块文件名
- * @param type 模块类型
- */
 Module::Module(const std::string &name, const std::string &version, const std::string &filename,
                uint32_t type)
     : m_name(name), m_version(version), m_filename(filename), m_id(name + "/" + version),
@@ -30,31 +21,14 @@ Module::Module(const std::string &name, const std::string &version, const std::s
 {
 }
 
-/**
- * @brief 在命令行参数解析前的回调函数
- * @param argc 参数个数
- * @param argv 参数数组
- */
 void Module::onBeforeArgsParse(int argc, char **argv)
 {
 }
 
-/**
- * @brief 在命令行参数解析后的回调函数
- * @param argc 参数个数
- * @param argv 参数数组
- */
 void Module::onAfterArgsParse(int argc, char **argv)
 {
 }
 
-/**
- * @brief 处理请求消息
- * @param req 请求消息
- * @param rsp 响应消息
- * @param stream 数据流
- * @return 处理结果
- */
 bool Module::handleRequest(sylar::Message::ptr req, sylar::Message::ptr rsp,
                            sylar::Stream::ptr stream)
 {
@@ -63,78 +37,131 @@ bool Module::handleRequest(sylar::Message::ptr req, sylar::Message::ptr rsp,
     return true;
 }
 
-/**
- * @brief 处理通知消息
- * @param notify 通知消息
- * @param stream 数据流
- * @return 处理结果
- */
 bool Module::handleNotify(sylar::Message::ptr notify, sylar::Stream::ptr stream)
 {
     SYLAR_LOG_DEBUG(g_logger) << "handleNotify nty=" << notify->toString() << " stream=" << stream;
     return true;
 }
 
-/**
- * @brief 模块加载时的回调函数
- * @return 加载结果
- */
 bool Module::onLoad()
 {
     return true;
 }
 
-/**
- * @brief 模块卸载时的回调函数
- * @return 卸载结果
- */
 bool Module::onUnload()
 {
     return true;
 }
 
-/**
- * @brief 连接建立时的回调函数
- * @param stream 数据流
- * @return 处理结果
- */
 bool Module::onConnect(sylar::Stream::ptr stream)
 {
     return true;
 }
 
-/**
- * @brief 连接断开时的回调函数
- * @param stream 数据流
- * @return 处理结果
- */
 bool Module::onDisconnect(sylar::Stream::ptr stream)
 {
     return true;
 }
 
-/**
- * @brief 服务器准备就绪时的回调函数
- * @return 处理结果
- */
 bool Module::onServerReady()
 {
     return true;
 }
 
-/**
- * @brief 服务器启动时的回调函数
- * @return 处理结果
- */
 bool Module::onServerUp()
 {
     return true;
 }
 
-/**
- * @brief 获取模块状态字符串
- * @return 状态信息字符串
- */
+void Module::registerService(const std::string &server_type, const std::string &domain,
+                             const std::string &service)
+{
+    auto sd = Application::GetInstance()->getServiceDiscovery();
+    if (!sd) {
+        return;
+    }
+    auto ip_and_port = getServiceIPPort(server_type);
+    if (!ip_and_port.empty()) {
+        sd->registerServer(domain, service, ip_and_port, server_type);
+    }
+}
+
+void Module::queryService(const std::string &domain, const std::string &service)
+{
+    auto sd = Application::GetInstance()->getServiceDiscovery();
+    if (!sd) {
+        return;
+    }
+    sd->queryServer(domain, service);
+}
+
+std::string Module::GetServiceIPPort(const std::string &server_type)
+{
+    std::vector<TcpServer::ptr> svrs;
+    if (!Application::GetInstance()->getServer(server_type, svrs)) {
+        return "";
+    }
+    for (auto &i : svrs) {
+        auto socks = i->getSocks();
+        for (auto &s : socks) {
+            auto addr = std::dynamic_pointer_cast<IPv4Address>(s->getLocalAddress());
+            if (!addr) {
+                continue;
+            }
+            auto str = addr->toString();
+            if (str.find("127.0.0.1") == 0) {
+                continue;
+            }
+            std::string ip_and_port;
+            if (str.find("0.0.0.0") == 0) {
+                ip_and_port = sylar::GetIPv4() + ":" + std::to_string(addr->getPort());
+            } else {
+                ip_and_port = addr->toString();
+            }
+            return ip_and_port;
+        }
+    }
+    return "";
+}
+
+std::string Module::getServiceIPPort(const std::string &server_type)
+{
+    std::vector<TcpServer::ptr> svrs;
+    if (!Application::GetInstance()->getServer(server_type, svrs)) {
+        return "";
+    }
+    for (auto &i : svrs) {
+        auto socks = i->getSocks();
+        for (auto &s : socks) {
+            auto addr = std::dynamic_pointer_cast<IPv4Address>(s->getLocalAddress());
+            if (!addr) {
+                continue;
+            }
+            auto str = addr->toString();
+            if (str.find("127.0.0.1") == 0) {
+                continue;
+            }
+            std::string ip_and_port;
+            if (str.find("0.0.0.0") == 0) {
+                ip_and_port = sylar::GetIPv4() + ":" + std::to_string(addr->getPort());
+            } else {
+                ip_and_port = addr->toString();
+            }
+            return ip_and_port;
+        }
+    }
+    return "";
+}
+
+void Module::addRegisterParam(const std::string &key, const std::string &val)
+{
+    auto sd = Application::GetInstance()->getServiceDiscovery();
+    if (!sd) {
+        return;
+    }
+    sd->addParam(key, val);
+}
+
 std::string Module::statusString()
 {
     std::stringstream ss;
@@ -143,18 +170,32 @@ std::string Module::statusString()
     return ss.str();
 }
 
-/**
- * @brief 模块管理器构造函数
- */
+RockModule::RockModule(const std::string &name, const std::string &version,
+                       const std::string &filename)
+    : Module(name, version, filename, ROCK)
+{
+}
+
+bool RockModule::handleRequest(sylar::Message::ptr req, sylar::Message::ptr rsp,
+                               sylar::Stream::ptr stream)
+{
+    auto rock_req = std::dynamic_pointer_cast<sylar::RockRequest>(req);
+    auto rock_rsp = std::dynamic_pointer_cast<sylar::RockResponse>(rsp);
+    auto rock_stream = std::dynamic_pointer_cast<sylar::RockStream>(stream);
+    return handleRockRequest(rock_req, rock_rsp, rock_stream);
+}
+
+bool RockModule::handleNotify(sylar::Message::ptr notify, sylar::Stream::ptr stream)
+{
+    auto rock_nty = std::dynamic_pointer_cast<sylar::RockNotify>(notify);
+    auto rock_stream = std::dynamic_pointer_cast<sylar::RockStream>(stream);
+    return handleRockNotify(rock_nty, rock_stream);
+}
+
 ModuleManager::ModuleManager()
 {
 }
 
-/**
- * @brief 根据名称获取模块
- * @param name 模块名称
- * @return 模块指针
- */
 Module::ptr ModuleManager::get(const std::string &name)
 {
     RWMutexType::ReadLock lock(m_mutex);
@@ -162,10 +203,6 @@ Module::ptr ModuleManager::get(const std::string &name)
     return it == m_modules.end() ? nullptr : it->second;
 }
 
-/**
- * @brief 添加模块
- * @param m 模块指针
- */
 void ModuleManager::add(Module::ptr m)
 {
     del(m->getId());
@@ -174,10 +211,6 @@ void ModuleManager::add(Module::ptr m)
     m_type2Modules[m->getType()][m->getId()] = m;
 }
 
-/**
- * @brief 删除模块
- * @param name 模块ID
- */
 void ModuleManager::del(const std::string &name)
 {
     Module::ptr module;
@@ -196,9 +229,6 @@ void ModuleManager::del(const std::string &name)
     module->onUnload();
 }
 
-/**
- * @brief 删除所有模块
- */
 void ModuleManager::delAll()
 {
     RWMutexType::ReadLock lock(m_mutex);
@@ -210,9 +240,6 @@ void ModuleManager::delAll()
     }
 }
 
-/**
- * @brief 初始化模块管理器
- */
 void ModuleManager::init()
 {
     auto path = EnvMgr::GetInstance()->getAbsolutePath(g_module_path->getValue());
@@ -226,11 +253,6 @@ void ModuleManager::init()
     }
 }
 
-/**
- * @brief 根据类型列出模块
- * @param type 模块类型
- * @param ms 模块指针向量
- */
 void ModuleManager::listByType(uint32_t type, std::vector<Module::ptr> &ms)
 {
     RWMutexType::ReadLock lock(m_mutex);
@@ -243,11 +265,6 @@ void ModuleManager::listByType(uint32_t type, std::vector<Module::ptr> &ms)
     }
 }
 
-/**
- * @brief 遍历指定类型的模块
- * @param type 模块类型
- * @param cb 回调函数
- */
 void ModuleManager::foreach (uint32_t type, std::function<void(Module::ptr)> cb)
 {
     std::vector<Module::ptr> ms;
@@ -257,10 +274,6 @@ void ModuleManager::foreach (uint32_t type, std::function<void(Module::ptr)> cb)
     }
 }
 
-/**
- * @brief 连接建立时的回调函数
- * @param stream 数据流
- */
 void ModuleManager::onConnect(Stream::ptr stream)
 {
     std::vector<Module::ptr> ms;
@@ -271,10 +284,6 @@ void ModuleManager::onConnect(Stream::ptr stream)
     }
 }
 
-/**
- * @brief 连接断开时的回调函数
- * @param stream 数据流
- */
 void ModuleManager::onDisconnect(Stream::ptr stream)
 {
     std::vector<Module::ptr> ms;
@@ -285,10 +294,6 @@ void ModuleManager::onDisconnect(Stream::ptr stream)
     }
 }
 
-/**
- * @brief 列出所有模块
- * @param ms 模块指针向量
- */
 void ModuleManager::listAll(std::vector<Module::ptr> &ms)
 {
     RWMutexType::ReadLock lock(m_mutex);
@@ -297,10 +302,6 @@ void ModuleManager::listAll(std::vector<Module::ptr> &ms)
     }
 }
 
-/**
- * @brief 初始化指定路径的模块
- * @param path 模块文件路径
- */
 void ModuleManager::initModule(const std::string &path)
 {
     Module::ptr m = Library::GetModule(path);

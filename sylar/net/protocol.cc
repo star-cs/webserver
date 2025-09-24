@@ -1,12 +1,13 @@
 #include "sylar/net/protocol.h"
 #include "sylar/core/util/util.h"
+#include <memory>
 
 namespace sylar
 {
 
 ByteArray::ptr Message::toByteArray()
 {
-    ByteArray::ptr ba(new ByteArray);
+    ByteArray::ptr ba = std::make_shared<ByteArray>();
     if (serializeToByteArray(ba)) {
         return ba;
     }

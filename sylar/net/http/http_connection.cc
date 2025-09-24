@@ -3,6 +3,7 @@
 #include "sylar/core/log/log.h"
 #include "http_parser.h"
 #include "sylar/core/memory/memorypool.h"
+#include <memory>
 
 namespace sylar {
 namespace http{
@@ -161,7 +162,7 @@ HttpConnection::~HttpConnection(){
 }
 
 HttpResponse::ptr HttpConnection::recvResponse(){
-    HttpResponseParser::ptr parser(new HttpResponseParser);
+    HttpResponseParser::ptr parser = std::make_shared<HttpResponseParser>();
     uint64_t buff_size = HttpResponseParser::GetHttpResponseBufferSize();
     std::shared_ptr<char> buffer(
         (char*)SYLAR_THREAD_MALLOC(buff_size + 1), [=](char* ptr){

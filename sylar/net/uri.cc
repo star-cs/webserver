@@ -6,12 +6,13 @@
  */
 #include "uri.h"
 #include "http/http_parser.h"
+#include <memory>
 #include <sstream>
 
 namespace sylar {
 
 Uri::ptr Uri::Create(const std::string &urlstr) {
-    Uri::ptr uri(new Uri);
+    Uri::ptr uri = std::make_shared<Uri>();
     struct http_parser_url parser;
 
     http_parser_url_init(&parser);

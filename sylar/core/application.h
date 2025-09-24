@@ -2,7 +2,9 @@
 #define __SYLAR_APPLICATION_H__
 
 #include "sylar/net/http/http_server.h"
-// #include "sylar/net/rock/.h"
+#include "sylar/net/streams/service_discovery.h"
+#include "sylar/net/rock/rock_stream.h"
+// #include "sylar/net/grpc/grpc_loadbalance.h"
 
 namespace sylar
 {
@@ -19,7 +21,11 @@ public:
     bool getServer(const std::string &type, std::vector<TcpServer::ptr> &svrs);
     void listAllServer(std::map<std::string, std::vector<TcpServer::ptr> > &servers);
 
-    // RockSDLoadBalance::ptr getRockSDLoadBalance() const { return m_rockSDLoadBalance; }
+    IServiceDiscovery::ptr getServiceDiscovery() const { return m_serviceDiscovery; }
+    RockSDLoadBalance::ptr getRockSDLoadBalance() const { return m_rockSDLoadBalance; }
+    // grpc::GrpcSDLoadBalance::ptr getGrpcSDLoadBalance() const { return m_grpcSDLoadBalance; }
+
+    void initEnv();
 
 private:
     int main(int argc, char **argv);
@@ -29,14 +35,17 @@ private:
     int m_argc = 0;
     char **m_argv = nullptr;
 
-    std::vector<sylar::http::HttpServer::ptr> m_httpservers;
+    // std::vector<sylar::http::HttpServer::ptr> m_httpservers;
     std::map<std::string, std::vector<TcpServer::ptr> > m_servers;
     IOManager::ptr m_mainIOManager;
     static Application *s_instance;
 
-    // ZKServiceDiscovery::ptr m_serviceDiscovery;
-    // RockSDLoadBalance::ptr m_rockSDLoadBalance;
+    IServiceDiscovery::ptr m_serviceDiscovery;
+    RockSDLoadBalance::ptr m_rockSDLoadBalance;
+    // grpc::GrpcSDLoadBalance::ptr m_grpcSDLoadBalance;
 };
+
+std::string GetServerWorkPath();
 
 } // namespace sylar
 

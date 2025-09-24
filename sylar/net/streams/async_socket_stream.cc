@@ -114,7 +114,7 @@ bool AsyncSocketStream::start()
         m_tryConnectCount = 0;
         return true;
     } while (false);
-    
+
     // 启动失败，增加尝试连接次数
     ++m_tryConnectCount;
     // 如果开启了自动重连，设置定时器进行重试
@@ -146,18 +146,29 @@ void AsyncSocketStream::doRead()
 {
     try {
         // 循环读取数据，直到连接断开
-        while (isConnected()) {
+        while (isConnected() && !m_closing.load()) {
+            // 再次检查连接状态和关闭状态，防止在循环过程中连接被关闭
+            if (!isConnected() || m_closing.load()) {
+                break;
+            }
+
             recving = true;
             // 调用子类实现的doRecv方法处理接收到的数据
             auto ctx = doRecv();
             recving = false;
+
+            // 检查连接状态和关闭状态，如果连接已断开则退出
+            if (!isConnected() || m_closing.load()) {
+                break;
+            }
+
             // 如果有上下文，执行响应处理
             if (ctx) {
                 ctx->doRsp();
             }
         }
     } catch (...) {
-        //TODO log 异常处理
+        SYLAR_LOG_ERROR(g_logger) << "doRead exception occurred";
     }
 
     SYLAR_LOG_DEBUG(g_logger) << "doRead out " << this;
@@ -181,9 +192,15 @@ void AsyncSocketStream::doWrite()
 {
     try {
         // 循环发送数据，直到连接断开
-        while (isConnected()) {
+        while (isConnected() && !m_closing.load()) {
             // 等待信号量，直到有数据需要发送
             m_sem.wait();
+
+            // 检查连接状态和关闭状态，防止在等待过程中连接被关闭
+            if (!isConnected() || m_closing.load()) {
+                break;
+            }
+
             std::list<SendCtx::ptr> ctxs;
             {
                 RWMutexType::WriteLock lock(m_queueMutex);
@@ -193,6 +210,10 @@ void AsyncSocketStream::doWrite()
             auto self = shared_from_this();
             // 逐个执行发送操作
             for (auto &i : ctxs) {
+                // 在每次发送前检查连接状态和关闭状态
+                if (!isConnected() || m_closing.load()) {
+                    break;
+                }
                 if (!i->doSend(self)) {
                     // 发送失败，关闭连接
                     innerClose();
@@ -201,7 +222,7 @@ void AsyncSocketStream::doWrite()
             }
         }
     } catch (...) {
-        //TODO log 异常处理
+        SYLAR_LOG_ERROR(g_logger) << "doWrite exception occurred";
     }
     SYLAR_LOG_DEBUG(g_logger) << "doWrite out " << this;
     // 清理发送队列
@@ -322,6 +343,19 @@ bool AsyncSocketStream::enqueue(SendCtx::ptr ctx)
 bool AsyncSocketStream::innerClose()
 {
     SYLAR_ASSERT(m_iomanager == sylar::IOManager::GetThis());
+
+    // 设置关闭状态，防止重复关闭
+    bool expected = false;
+    if (!m_closing.compare_exchange_strong(expected, true)) {
+        return true; // 已经在关闭过程中
+    }
+
+    // 先移除epoll事件，防止文件描述符重用问题
+    if (m_socket && m_socket->getSocket() != -1) {
+        m_iomanager->delEvent(m_socket->getSocket(), sylar::IOManager::READ);
+        m_iomanager->delEvent(m_socket->getSocket(), sylar::IOManager::WRITE);
+    }
+
     // 执行断开连接回调
     if (isConnected() && m_disconnectCb) {
         m_disconnectCb(shared_from_this());

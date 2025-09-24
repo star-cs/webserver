@@ -1,3 +1,4 @@
+#include <memory>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -140,8 +141,12 @@ FdCtx::ptr FdManager::get(int fd, bool auto_create)
     lock.unlock();
 
     RWMutexType::WriteLock lock2(m_mutex);
-    FdCtx::ptr fd_ctx(new FdCtx(fd)); //创建
-    if (fd >= (int)m_datas.size()) {
+    if ((int)m_datas.size() > fd && m_datas[fd]) {
+        return m_datas[fd];
+    }
+
+    FdCtx::ptr fd_ctx = std::make_shared<FdCtx>(fd); //创建
+    if ((size_t)fd >= m_datas.size()) {
         m_datas.resize(fd * 1.5);
     }
     m_datas[fd] = fd_ctx;
@@ -151,7 +156,7 @@ FdCtx::ptr FdManager::get(int fd, bool auto_create)
 void FdManager::del(int fd)
 {
     RWMutexType::WriteLock lock(m_mutex);
-    if ((int)m_datas.size() <= false) {
+    if ((int)m_datas.size() <= fd) {
         return;
     }
     m_datas[fd].reset(); //里面存的是 FdCtx::ptr，reset即可。
