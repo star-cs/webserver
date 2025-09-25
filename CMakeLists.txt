@@ -90,7 +90,10 @@ set(LIBS
 
 # sylar_add_executable(test_mysql "tests/io/test_mysql.cc" sylar "${LIBS}")
 
-sylar_add_executable(test_rock "tests/net/rock/test_rock.cc" sylar "${LIBS}")
+# sylar_add_executable(test_rock "tests/net/rock/test_rock.cc" sylar "${LIBS}")
+
+sylar_add_executable(test_ws_server "tests/net/ws/test_ws_server.cc" sylar "${LIBS}")
+sylar_add_executable(test_ws_client "tests/net/ws/test_ws_client.cc" sylar "${LIBS}")
 
 set(ORM_SRCS
     sylar/io/orm/orm.cc

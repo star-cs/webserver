@@ -242,9 +242,9 @@ namespace http
     {
         size_t nparsed = http_parser_execute(&m_parser, &s_request_settings, data, len);
         if (m_parser.upgrade) {
-            // 处理新协议，暂时不处理
-            SYLAR_LOG_DEBUG(g_logger) << "found upgrade, ignore";
-            setError(HPE_UNKNOWN);
+            // // 处理新协议，暂时不处理
+            // SYLAR_LOG_DEBUG(g_logger) << "found upgrade, ignore";
+            // setError(HPE_UNKNOWN);
         } else if (m_parser.http_errno != 0) {
             SYLAR_LOG_DEBUG(g_logger)
                 << "parse request fail: " << http_errno_name(HTTP_PARSER_ERRNO(&m_parser));
