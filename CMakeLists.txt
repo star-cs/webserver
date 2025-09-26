@@ -40,7 +40,7 @@ if(Protobuf_FOUND)
     include_directories(${Protobuf_INCLUDE_DIRS})
 endif()
 
-file(GLOB_RECURSE CORE_FILES sylar/core/*.cc sylar/core/fcontext_asm/*.S)
+file(GLOB_RECURSE CORE_FILES sylar/core/*.cc sylar/core/fcontext_asm/*.S sylar/core/dag/*.cc)
 file(GLOB_RECURSE IO_FILES sylar/io/db/*.cc sylar/io/util/*.cc)
 file(GLOB_RECURSE NET_FILES sylar/net/*.cc sylar/net/http/http-parser/http_parser.c)
 
@@ -94,6 +94,7 @@ set(LIBS
 
 sylar_add_executable(test_ws_server "tests/net/ws/test_ws_server.cc" sylar "${LIBS}")
 sylar_add_executable(test_ws_client "tests/net/ws/test_ws_client.cc" sylar "${LIBS}")
+sylar_add_executable(test_dag "tests/core/test_dag.cc" sylar "${LIBS}")
 
 set(ORM_SRCS
     sylar/io/orm/orm.cc

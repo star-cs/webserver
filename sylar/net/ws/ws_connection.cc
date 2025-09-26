@@ -56,7 +56,7 @@ namespace http
                                                                "invalid host: " + uri->getHost()),
                                   nullptr);
         }
-        
+
         // 创建TCP Socket
         Socket::ptr sock = Socket::CreateTCP(addr);
         if (!sock) {
@@ -67,7 +67,7 @@ namespace http
                                                  + " errstr=" + std::string(strerror(errno))),
                 nullptr);
         }
-        
+
         // 连接服务器
         if (!sock->connect(addr)) {
             return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::CONNECT_FAIL,
@@ -75,7 +75,7 @@ namespace http
                                                                "connect fail: " + addr->toString()),
                                   nullptr);
         }
-        
+
         // 设置接收超时
         sock->setRecvTimeout(timeout_ms);
         WSConnection::ptr conn = std::make_shared<WSConnection>(sock);
@@ -86,7 +86,7 @@ namespace http
         req->setQuery(uri->getQuery());
         req->setFragment(uri->getFragment());
         req->setMethod(HttpMethod::GET);
-        
+
         // 检查是否已包含必要的HTTP头
         bool has_host = false;
         bool has_conn = false;
@@ -99,7 +99,7 @@ namespace http
 
             req->setHeader(i.first, i.second);
         }
-        
+
         // 设置WebSocket相关HTTP头
         req->setWebsocket(true);
         if (!has_conn) {
@@ -127,7 +127,7 @@ namespace http
                                           + " errstr=" + std::string(strerror(errno))),
                                   nullptr);
         }
-        
+
         // 接收HTTP响应
         auto rsp = conn->recvResponse();
         if (!rsp) {
@@ -144,7 +144,7 @@ namespace http
                 std::make_shared<HttpResult>(50, rsp, "not websocket server " + addr->toString()),
                 nullptr);
         }
-        
+
         // 握手成功，返回连接
         return std::make_pair(std::make_shared<HttpResult>((int)HttpResult::Error::OK, rsp, "ok"),
                               conn);

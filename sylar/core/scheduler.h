@@ -233,9 +233,7 @@ private:
     int m_rootThread = 0;
 
     /// 是否正在停止
-    bool m_stopping = true;
-    /// 是否自动停止
-    bool m_autoStop = false;
+    bool m_stopping = false;
 };
 
 class SchedulerSwitcher : public Noncopyable

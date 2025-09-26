@@ -417,7 +417,7 @@ void IOManager::idle()
         do {
             static const int MAX_TIMEOUT = 5000;
             if (next_timeout != ~0ull) {
-                next_timeout = (int)next_timeout > MAX_TIMEOUT ? MAX_TIMEOUT : next_timeout;
+                next_timeout = std::min((int)next_timeout, MAX_TIMEOUT);
             } else {
                 next_timeout = MAX_TIMEOUT;
             }

@@ -44,10 +44,10 @@ Scheduler::Scheduler(size_t threads, bool use_caller, const std::string &name) :
 
     if (use_caller) { // 主线程也添加到 调度
         threads--;
-        sylar::Fiber::GetThis();           // 创建主协程，初始化 t_thread_fiber
+        sylar::Fiber::GetThis(); // 创建主协程，初始化 t_thread_fiber
         SYLAR_ASSERT(GetThis() == nullptr) // 当前线程没有调度器（如果有了t_scheduler存在，意味着
                                            // 主线程已经加入了 某一个调度器管理中）
-        t_scheduler = this;                // 设置当前线程的调度器
+        t_scheduler = this; // 设置当前线程的调度器
 
         /**
          * caller线程的主协程不会被线程的调度协程run进行调度，而且，线程的调度协程停止时，应该返回caller线程的主协程
@@ -110,12 +110,12 @@ Scheduler::~Scheduler()
  */
 void Scheduler::start()
 {
-    // SYLAR_LOG_DEBUG(g_logger) << "Scheduler::start() called";
+    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::start() called";
     RWMutexType::WriteLock lock(m_mutex);
-    if (!m_stopping) {
+    if (m_stopping) {
+        SYLAR_LOG_ERROR(g_logger) << "Scheduler is stopped";
         return;
     }
-    m_stopping = false;
     SYLAR_ASSERT(m_threads.empty());
 
     m_threads.resize(m_threadCount);
@@ -133,7 +133,7 @@ bool Scheduler::stopping()
 {
     RWMutexType::ReadLock lock(m_mutex);
     // 停止，任务队列为空，线程池都结束了任务
-    return m_autoStop && m_stopping && m_tasks.empty() && m_activeThreadCount == 0;
+    return m_stopping && m_tasks.empty() && m_activeThreadCount == 0;
 }
 
 void Scheduler::tickle()
@@ -143,10 +143,10 @@ void Scheduler::tickle()
 
 void Scheduler::idle()
 {
-    SYLAR_LOG_DEBUG(g_logger) << "Scheduler::idle() started.";
+    // SYLAR_LOG_DEBUG(g_logger) << "Scheduler::idle() started.";
     // 如果idle协程退出了这个while()循环，就相当于直接退出了 idle_fiber->getState() 变为 TERM
     while (!stopping()) {
-        SYLAR_LOG_DEBUG(g_logger) << "Idle fiber yielding.";
+        // SYLAR_LOG_DEBUG(g_logger) << "Idle fiber yielding.";
         sylar::Fiber::GetThis()->yield();
     }
 }
@@ -157,24 +157,18 @@ void Scheduler::idle()
  */
 void Scheduler::stop()
 {
-    m_autoStop = true;
-    if (m_rootFiber && m_threadCount == 0
-        && (m_rootFiber->getState() == Fiber::TERM || m_rootFiber->getState() == Fiber::READY)) {
-        // SYLAR_LOG_INFO(g_logger) << this << " stopped";
-        m_stopping = true;
-
-        if (stopping()) {
-            return;
-        }
+    SYLAR_LOG_DEBUG(g_logger) << "stop";
+    if (stopping()) {
+        return;
     }
+    m_stopping = true;
 
-    if (m_rootThread != -1) {
+    if (m_useCaller) {
         SYLAR_ASSERT(GetThis() == this);
     } else {
         SYLAR_ASSERT(GetThis() != this);
     }
 
-    m_stopping = true;
     for (size_t i = 0; i < m_threadCount; ++i) {
         tickle();
     }
@@ -190,9 +184,7 @@ void Scheduler::stop()
      * m_rootFiber 保存的就是 use_caller 调度协程
      */
     if (m_rootFiber) {
-        if (!stopping()) {
-            m_rootFiber->resume();
-        }
+        m_rootFiber->resume();
     }
 
     std::vector<Thread::ptr> thrs;

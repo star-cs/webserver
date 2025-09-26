@@ -10,10 +10,10 @@ namespace sylar
 namespace http
 {
 
-/**
- * @brief WebSocket服务器类
- * @details 继承自TcpServer，用于处理WebSocket连接和消息
- */
+    /**
+     * @brief WebSocket服务器类
+     * @details 继承自TcpServer，用于处理WebSocket连接和消息
+     */
     class WSServer : public TcpServer
     {
     public:
@@ -34,7 +34,7 @@ namespace http
          * @return WSServletDispatch对象的智能指针
          */
         WSServletDispatch::ptr getWSServletDispatch() const { return m_dispatch; }
-        
+
         /**
          * @brief 设置WebSocket Servlet调度器
          * @param v WSServletDispatch对象的智能指针

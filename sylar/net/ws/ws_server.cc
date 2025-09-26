@@ -44,21 +44,21 @@ namespace http
                 SYLAR_LOG_DEBUG(g_logger) << "handleShake error";
                 break;
             }
-            
+
             // 根据路径查找对应的Servlet
             WSServlet::ptr servlet = m_dispatch->getWSServlet(header->getPath());
             if (!servlet) {
                 SYLAR_LOG_DEBUG(g_logger) << "no match WSServlet";
                 break;
             }
-            
+
             // 调用Servlet的onConnect方法
             int rt = servlet->onConnect(header, session);
             if (rt) {
                 SYLAR_LOG_DEBUG(g_logger) << "onConnect return " << rt;
                 break;
             }
-            
+
             // 循环接收和处理WebSocket消息
             while (true) {
                 auto msg = session->recvMessage();
@@ -71,7 +71,7 @@ namespace http
                     break;
                 }
             }
-            
+
             // 连接关闭时调用Servlet的onClose方法
             servlet->onClose(header, session);
         } while (0);

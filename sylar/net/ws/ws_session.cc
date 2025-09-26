@@ -180,20 +180,20 @@ namespace http
                 if (WSPong(stream) <= 0) {
                     break;
                 }
-            } 
+            }
             // 忽略PONG帧
             else if (ws_head.opcode == WSFrameHead::PONG) {
-            } 
+            }
             // 处理数据帧
             else if (ws_head.opcode == WSFrameHead::CONTINUE
-                       || ws_head.opcode == WSFrameHead::TEXT_FRAME
-                       || ws_head.opcode == WSFrameHead::BIN_FRAME) {
+                     || ws_head.opcode == WSFrameHead::TEXT_FRAME
+                     || ws_head.opcode == WSFrameHead::BIN_FRAME) {
                 // 服务端要求客户端发送的帧必须有掩码
                 if (!client && !ws_head.mask) {
                     SYLAR_LOG_INFO(g_logger) << "WSFrameHead mask != 1";
                     break;
                 }
-                
+
                 // 解析负载长度
                 uint64_t length = 0;
                 if (ws_head.payload == 126) {
@@ -231,7 +231,7 @@ namespace http
                 if (stream->readFixSize(&data[cur_len], length) <= 0) {
                     break;
                 }
-                
+
                 // 应用掩码
                 if (ws_head.mask) {
                     for (int i = 0; i < (int)length; ++i) {
@@ -275,7 +275,7 @@ namespace http
             ws_head.fin = fin;
             ws_head.opcode = msg->getOpcode();
             ws_head.mask = client;
-            
+
             // 设置负载长度
             uint64_t size = msg->getData().size();
             if (size < 126) {
@@ -290,7 +290,7 @@ namespace http
             if (stream->writeFixSize(&ws_head, sizeof(ws_head)) <= 0) {
                 break;
             }
-            
+
             // 发送扩展长度
             if (ws_head.payload == 126) {
                 uint16_t len = size;
@@ -304,7 +304,7 @@ namespace http
                     break;
                 }
             }
-            
+
             // 客户端模式需要添加掩码
             if (client) {
                 char mask[4];
@@ -319,7 +319,7 @@ namespace http
                     break;
                 }
             }
-            
+
             // 发送数据
             if (stream->writeFixSize(msg->getData().c_str(), size) <= 0) {
                 break;
