@@ -34,6 +34,33 @@ namespace orm
             m_desc = node.Attribute("desc");
         }
 
+        // 解析数据库类型标识
+        if (node.Attribute("db_type")) {
+            std::string db_type = node.Attribute("db_type");
+            if (db_type == "sqlite3") {
+                m_type = TYPE_SQLITE3;
+            } else if (db_type == "mysql") {
+                m_type = TYPE_MYSQL;
+            } else if (db_type == "postgresql") {
+                m_type = TYPE_POSTGRESQL;
+            } else {
+                SYLAR_LOG_WARN(g_logger)
+                    << "table name=" << m_name << " unknown db_type=" << db_type
+                    << ", using default SQLite3";
+                m_type = TYPE_SQLITE3;
+            }
+        }
+
+        // 解析pgvector扩展标识
+        if (node.Attribute("pgvector_enabled")) {
+            std::string pgvector_enabled = node.Attribute("pgvector_enabled");
+            if (pgvector_enabled == "true" && m_type == TYPE_POSTGRESQL) {
+                // 可以在这里设置pgvector相关的标识或配置
+                SYLAR_LOG_INFO(g_logger)
+                    << "table name=" << m_name << " pgvector extension enabled";
+            }
+        }
+
         const tinyxml2::XMLElement *cols = node.FirstChildElement("columns");
         if (!cols) {
             SYLAR_LOG_ERROR(g_logger) << "table name=" << m_name << " columns is null";
@@ -182,16 +209,16 @@ namespace orm
             ofs << std::endl;
         }
         ofs << "    " << genToStringInc() << std::endl;
-        //ofs << "    std::string toInsertSQL() const;" << std::endl;
-        //ofs << "    std::string toUpdateSQL() const;" << std::endl;
-        //ofs << "    std::string toDeleteSQL() const;" << std::endl;
+        // ofs << "    std::string toInsertSQL() const;" << std::endl;
+        // ofs << "    std::string toUpdateSQL() const;" << std::endl;
+        // ofs << "    std::string toDeleteSQL() const;" << std::endl;
         ofs << std::endl;
 
         ofs << "private:" << std::endl;
         for (auto &i : cols) {
             ofs << "    " << i->getMemberDefine();
         }
-        //ofs << "    uint64_t _flags = 0;" << std::endl;
+        // ofs << "    uint64_t _flags = 0;" << std::endl;
         ofs << "};" << std::endl;
         ofs << std::endl;
 
@@ -237,9 +264,9 @@ namespace orm
     }
 
     /**
-         * @brief 生成源文件（.cc）内容并写入指定路径
-         * @param[in] path 文件输出的目录路径
-         */
+     * @brief 生成源文件（.cc）内容并写入指定路径
+     * @param[in] path 文件输出的目录路径
+     */
     void Table::gen_src(const std::string &path)
     {
         // 构造类名和文件名
@@ -293,9 +320,9 @@ namespace orm
         // 生成 toString 方法实现
         ofs << genToStringSrc(class_name) << std::endl;
         // 注释掉的SQL生成函数预留位置
-        //ofs << genToInsertSQL(class_name) << std::endl;
-        //ofs << genToUpdateSQL(class_name) << std::endl;
-        //ofs << genToDeleteSQL(class_name) << std::endl;
+        // ofs << genToInsertSQL(class_name) << std::endl;
+        // ofs << genToUpdateSQL(class_name) << std::endl;
+        // ofs << genToDeleteSQL(class_name) << std::endl;
 
         // 生成各字段的 setter 函数实现
         for (size_t i = 0; i < m_cols.size(); ++i) {
@@ -441,13 +468,13 @@ namespace orm
     }
 
     /**
-         * @brief 生成数据访问对象（DAO）的头文件声明代码
-         * 
-         * 该函数用于生成一个C++类的声明代码，该类提供了对数据库表的基本操作接口，
-         * 包括增删改查、创建表等方法。生成的类名由表名和后缀组合而成，并以 "_dao" 结尾。
-         * 
-         * @param ofs 输出流，用于写入生成的代码内容
-         */
+     * @brief 生成数据访问对象（DAO）的头文件声明代码
+     *
+     * 该函数用于生成一个C++类的声明代码，该类提供了对数据库表的基本操作接口，
+     * 包括增删改查、创建表等方法。生成的类名由表名和后缀组合而成，并以 "_dao" 结尾。
+     *
+     * @param ofs 输出流，用于写入生成的代码内容
+     */
     void Table::gen_dao_inc(std::ofstream &ofs)
     {
         std::string class_name = m_name + m_subfix;
@@ -551,9 +578,13 @@ namespace orm
             }
         }
 
-        // 声明创建SQLite3和MySQL表结构的方法
+        // 声明创建SQLite3、MySQL和PostgreSQL表结构的方法
         ofs << "    static int CreateTableSQLite3(" << m_dbclass << "::ptr info);" << std::endl;
         ofs << "    static int CreateTableMySQL(" << m_dbclass << "::ptr info);" << std::endl;
+        if (m_type == TYPE_POSTGRESQL) {
+            ofs << "    static int CreateTablePostgreSQL(" << m_dbclass << "::ptr info);"
+                << std::endl;
+        }
 
         // 写入类定义结束
         ofs << "};" << std::endl;
@@ -1100,8 +1131,108 @@ namespace orm
             ofs << " COMMENT='" << m_desc << "'";
         }
         ofs << "\");" << std::endl;
-        ofs << "}";
-    }
+        ofs << "}" << std::endl << std::endl;
 
+        // 添加PostgreSQL表创建方法实现
+        if (m_type == TYPE_POSTGRESQL) {
+            if (std::any_of(m_cols.begin(), m_cols.end(),
+                            [](const Column::ptr& col) { return col->getDType() == Column::TYPE_VECTOR; })) {
+                ofs << "    conn->execute(\"CREATE EXTENSION IF NOT EXISTS vector;\");"
+                    << std::endl;
+            }
+
+            ofs << "int " << GetAsClassName(class_name_dao) << "::CreateTablePostgreSQL("
+                << m_dbclass << "::ptr conn) {" << std::endl;
+            ofs << "    return conn->execute(\"CREATE TABLE " << m_name << "(\"" << std::endl;
+            is_first = true;
+            has_auto_increment = false;
+            for (auto &i : m_cols) {
+                if (!is_first) {
+                    ofs << ",\"" << std::endl;
+                }
+                ofs << "            \"" << i->getName() << " " << i->getPostgreSQLTypeString();
+                if (i->isAutoIncrement()) {
+                    // PostgreSQL使用SERIAL或BIGSERIAL代替AUTO_INCREMENT
+                    // 这里假设已经在getPostgreSQLTypeString()中处理了SERIAL类型
+                    has_auto_increment = true;
+                } else {
+                    std::string default_val = i->getPostgreSQLDefault();
+                    if (!default_val.empty()) {
+                        ofs << " NOT NULL DEFAULT " << default_val;
+                    } else {
+                        ofs << " NOT NULL DEFAULT ''";
+                    }
+                }
+
+                if (!m_desc.empty()) {
+                    // ofs << " COMMENT '" << m_desc << "'";
+                }
+                is_first = false;
+            }
+
+            // 添加主键约束
+            if (!has_auto_increment) {
+                ofs << ",\"" << std::endl << "            \"PRIMARY KEY(";
+                is_first = true;
+                for (auto &i : pks) {
+                    if (!is_first) {
+                        ofs << ", ";
+                    }
+                    ofs << i->getName();
+                    is_first = false;
+                }
+                ofs << ")";
+            }
+            ofs << ")\");" << std::endl;
+
+            // 创建索引
+            for (auto &i : m_idxs) {
+                if (i->getDType() == Index::TYPE_PK) {
+                    continue;
+                }
+
+                if (i->getDType() == Index::TYPE_VECTOR_INDEX) {
+                    // 为向量索引创建特殊的pgvector索引
+                    ofs << "    conn->execute(\"CREATE INDEX " << m_name;
+                    for (auto &x : i->getCols()) {
+                        ofs << "_" << x;
+                    }
+                    ofs << " ON " << m_name << " USING ivfflat (";
+                    is_first = true;
+                    for (auto &x : i->getCols()) {
+                        if (!is_first) {
+                            ofs << ",";
+                        }
+                        ofs << x << " vector_cosine_ops"; // 使用余弦相似度操作符
+                        is_first = false;
+                    }
+                    ofs << ") WITH (lists = 100);\");" << std::endl; // 设置IVFFlat参数
+                } else {
+                    // 普通索引创建
+                    ofs << "    conn->execute(\"CREATE";
+                    if (i->getDType() == Index::TYPE_UNIQ) {
+                        ofs << " UNIQUE";
+                    }
+                    ofs << " INDEX " << m_name;
+                    for (auto &x : i->getCols()) {
+                        ofs << "_" << x;
+                    }
+                    ofs << " ON " << m_name << "(";
+                    is_first = true;
+                    for (auto &x : i->getCols()) {
+                        if (!is_first) {
+                            ofs << ",";
+                        }
+                        ofs << x;
+                        is_first = false;
+                    }
+
+                    ofs << ");\");" << std::endl;
+                }
+            }
+            ofs << "    return 0;" << std::endl;
+            ofs << "}";
+        }
+    }
 } // namespace orm
 } // namespace sylar

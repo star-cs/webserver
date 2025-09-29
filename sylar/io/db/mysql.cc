@@ -254,14 +254,6 @@ MySQLStmt::~MySQLStmt()
         if (i.buffer) {
             free(i.buffer);
         }
-        //if(i.buffer_type == MYSQL_TYPE_TIMESTAMP
-        //    || i.buffer_type == MYSQL_TYPE_DATETIME
-        //    || i.buffer_type == MYSQL_TYPE_DATE
-        //    || i.buffer_type == MYSQL_TYPE_TIME) {
-        //    if(i.buffer) {
-        //        free(i.buffer);
-        //    }
-        //}
     }
 }
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(sylar)
 
 include (cmake/utils.cmake)
@@ -26,6 +26,7 @@ enable_language(ASM)
 # 头文件
 include_directories(.)
 include_directories(/usr/local/include) 
+include_directories(/usr/include/postgresql)
 link_directories(/usr/local/lib)            # 一般安装后，include是头文件，lib是库文件
 
 include_directories(/usr/include/jsoncpp)
@@ -60,6 +61,7 @@ set(LIBS
     hiredis_vip
     mysqlclient
     sqlite3
+    pq
     tinyxml2
 )
 # sylar_add_executable(test_log "tests/core/test_log.cc" sylar "${LIBS}")
@@ -89,6 +91,7 @@ set(LIBS
 # sylar_add_executable(test_http2_server "tests/net/http2/http2_server.cc" sylar "${LIBS}")
 
 # sylar_add_executable(test_mysql "tests/io/test_mysql.cc" sylar "${LIBS}")
+sylar_add_executable(test_postgresql "tests/io/test_postgresql.cc" sylar "${LIBS}")
 
 # sylar_add_executable(test_rock "tests/net/rock/test_rock.cc" sylar "${LIBS}")
 

@@ -31,6 +31,10 @@ private:
     std::string genToUpdateSQL(const std::string& class_name);
     std::string genToDeleteSQL(const std::string& class_name);
 
+    static int CreateTableSQLite3(const std::string& dbclass);
+    static int CreateTableMySQL(const std::string& dbclass);
+    static int CreateTablePostgreSQL(const std::string& dbclass);
+
     std::vector<Column::ptr> getPKs() const;
     Column::ptr getCol(const std::string& name) const;
 
@@ -41,7 +45,8 @@ private:
 
     enum DBType {
         TYPE_SQLITE3 = 1,
-        TYPE_MYSQL = 2
+        TYPE_MYSQL = 2,
+        TYPE_POSTGRESQL = 3
     };
 private:
     std::string m_name;

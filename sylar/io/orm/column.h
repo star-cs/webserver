@@ -28,7 +28,8 @@ public:
         TYPE_STRING,
         TYPE_TEXT,
         TYPE_BLOB,
-        TYPE_TIMESTAMP
+        TYPE_TIMESTAMP,
+        TYPE_VECTOR  // 新增向量类型，用于pgvector扩展
     };
 
     const std::string& getName() const { return m_name;}
@@ -56,9 +57,11 @@ public:
     std::string getDTypeString() { return TypeToString(m_dtype);}
     std::string getSQLite3TypeString();
     std::string getMySQLTypeString();
+    std::string getPostgreSQLTypeString();  // 新增PostgreSQL类型字符串方法
 
     std::string getBindString();
     std::string getGetString();
+    std::string getPostgreSQLDefault();  // 新增PostgreSQL默认值方法
     const std::string& getUpdate() const { return m_update;}
 private:
     std::string m_name;

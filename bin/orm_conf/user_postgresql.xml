@@ -1,4 +1,4 @@
-<table name="user" namespace="test.orm" desc="用户表">
+<table name="user_postgresql" namespace="test.orm" desc="用户表" db_type="postgresql" pgvector_enabled="true">
     <columns>
         <column name="id" type="int64" desc="唯一主键" auto_increment="true"/>
         <column name="name" type="string" desc="名称" length="30"/>
@@ -7,11 +7,13 @@
         <column name="status" type="int32" default="10"/>
         <column name="create_time" type="timestamp" default="current_timestamp"/>
         <column name="update_time" type="timestamp" default="current_timestamp" update="current_timestamp"/>
+        <column name="embedding" type="vector" desc="向量嵌入字段，用于向量搜索" length="1536" default="[]"/>
     </columns>
     <indexs>
         <index name="pk" cols="id" type="pk" desc="主键"/>
         <index name="name" cols="name" type="uniq" desc="关联"/>
         <index name="email" cols="email" type="uniq" desc="关联"/>
         <index name="status" cols="status" type="index" desc="关联"/>
+        <index name="embedding_idx" cols="embedding" type="vector_index" desc="向量索引，用于相似性搜索"/>
     </indexs>
 </table>

@@ -15,7 +15,8 @@ public:
         TYPE_NULL = 0,
         TYPE_PK,
         TYPE_UNIQ,
-        TYPE_INDEX
+        TYPE_INDEX,
+        TYPE_VECTOR_INDEX  // 新增向量索引类型，用于pgvector扩展
     };
     typedef std::shared_ptr<Index> ptr;
     const std::string& getName() const { return m_name;}

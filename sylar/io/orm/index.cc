@@ -19,6 +19,7 @@ namespace orm
         XX(TYPE_PK, "pk");
         XX(TYPE_UNIQ, "uniq");
         XX(TYPE_INDEX, "index");
+        XX(TYPE_VECTOR_INDEX, "vector_index");  // 新增向量索引类型解析
 #undef XX
         return TYPE_NULL;
     }
@@ -32,6 +33,7 @@ namespace orm
         XX(TYPE_PK, "pk");
         XX(TYPE_UNIQ, "uniq");
         XX(TYPE_INDEX, "index");
+        XX(TYPE_VECTOR_INDEX, "vector_index");  // 新增向量索引类型转换
 #undef XX
         return "";
     }

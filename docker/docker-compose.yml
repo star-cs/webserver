@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15                # 使用 PostgreSQL 15 镜像
+    container_name: postgres_db       # 容器名称
+    environment:
+      POSTGRES_USER: test_user             # 设置用户名为 'root'
+      POSTGRES_PASSWORD: test_password       # 设置密码为 '123456'
+      POSTGRES_DB: test_db               # 设置数据库名为 'demo'
+    ports:
+      - "5433:5432"                   # 将容器的 5432 端口映射到主机的 5433 端口
+    volumes:
+      - /opt/docker-data/postgresql:/var/lib/postgresql/data  # 数据映射到主机指定路径
+
+
+
+volumes:
+  postgres_data:

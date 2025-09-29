@@ -29,6 +29,7 @@ Column::Type Column::ParseType(const std::string& v) {
     XX(TYPE_TEXT, text, std::string);
     XX(TYPE_BLOB, blob, blob);
     XX(TYPE_TIMESTAMP, timestamp, datetime);
+    XX(TYPE_VECTOR, vector, vector);  // 新增向量类型解析
 
 #undef XX
     return TYPE_NULL;
@@ -54,6 +55,7 @@ std::string Column::TypeToString(Type type) {
     XX(TYPE_TEXT, std::string);
     XX(TYPE_BLOB, std::string);
     XX(TYPE_TIMESTAMP, int64_t);
+    XX(TYPE_VECTOR, std::string);  // 向量类型映射为字符串
 #undef XX
     return "null";
 }
@@ -78,6 +80,7 @@ std::string Column::getSQLite3TypeString() {
     XX(TYPE_TEXT, TEXT);
     XX(TYPE_BLOB, BLOB);
     XX(TYPE_TIMESTAMP, TIMESTAMP);
+    XX(TYPE_VECTOR, TEXT);  // SQLite3中向量类型映射为TEXT
 #undef XX
     return "";
 }
@@ -101,6 +104,7 @@ std::string Column::getMySQLTypeString() {
     XX(TYPE_TEXT, text);
     XX(TYPE_BLOB, blob);
     XX(TYPE_TIMESTAMP, timestamp);
+    XX(TYPE_VECTOR, text);  // MySQL中向量类型映射为text
 #undef XX
     if(m_dtype == TYPE_STRING) {
         return "varchar(" + std::to_string(m_length ? m_length : 128) + ")";
@@ -127,6 +131,7 @@ std::string Column::getBindString() {
     XX(TYPE_TEXT, String);
     XX(TYPE_BLOB, Blob);
     XX(TYPE_TIMESTAMP, Time);
+    XX(TYPE_VECTOR, String);  // 向量类型绑定为字符串
 #undef XX
     return "";
 }
@@ -150,6 +155,7 @@ std::string Column::getGetString() {
     XX(TYPE_TEXT, String);
     XX(TYPE_BLOB, Blob);
     XX(TYPE_TIMESTAMP, Time);
+    XX(TYPE_VECTOR, String);  // 向量类型获取为字符串
 #undef XX
     return "";
 }
@@ -265,6 +271,49 @@ std::string Column::getSetFunDefine() const {
     ss << "void " << GetAsSetFunName(m_name) << "(const "
        << TypeToString(m_dtype) << "& v);" << std::endl;
     return ss.str();
+}
+
+std::string Column::getPostgreSQLTypeString() {
+#define XX(a, b) \
+    if(a == m_dtype) {\
+        return #b; \
+    }
+
+    XX(TYPE_INT8, smallint);
+    XX(TYPE_UINT8, smallint);
+    XX(TYPE_INT16, smallint);
+    XX(TYPE_UINT16, integer);
+    XX(TYPE_INT32, integer);
+    XX(TYPE_UINT32, bigint);
+    XX(TYPE_FLOAT, real);
+    XX(TYPE_INT64, bigint);
+    XX(TYPE_UINT64, bigint);
+    XX(TYPE_DOUBLE, double precision);
+    XX(TYPE_TEXT, text);
+    XX(TYPE_BLOB, bytea);
+    XX(TYPE_TIMESTAMP, timestamp);
+    XX(TYPE_VECTOR, vector);  // PostgreSQL中向量类型使用pgvector扩展
+#undef XX
+    if(m_dtype == TYPE_STRING) {
+        return "varchar(" + std::to_string(m_length ? m_length : 128) + ")";
+    }
+    return "";
+}
+
+std::string Column::getPostgreSQLDefault() {
+    if(m_default.empty()) {
+        return "";
+    }
+    
+    if(m_dtype == TYPE_STRING || m_dtype == TYPE_TEXT || m_dtype == TYPE_VECTOR) {
+        return "'" + m_default + "'";
+    } else if(m_dtype == TYPE_TIMESTAMP) {
+        if(m_default == "CURRENT_TIMESTAMP") {
+            return "CURRENT_TIMESTAMP";
+        }
+        return "'" + m_default + "'";
+    }
+    return m_default;
 }
 
 }
