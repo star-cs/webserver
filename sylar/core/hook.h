@@ -91,6 +91,10 @@ extern "C"
                                   socklen_t optlen);
     extern setsockopt_fun setsockopt_f;
 
+    // sendfile
+    typedef ssize_t (*sendfile_fun)(int out_fd, int in_fd, off_t *offset, size_t count);
+    extern sendfile_fun sendfile_f;
+
     extern int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen,
                                     uint64_t timeout_ms);
 }

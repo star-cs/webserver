@@ -5,6 +5,8 @@
 #include "sylar/core/common/macro.h"
 #include "sylar/core/hook.h"
 #include <limits.h>
+#include <sys/sendfile.h>
+#include <unistd.h>
 
 namespace sylar
 {
@@ -278,8 +280,8 @@ int Socket::send(const void *buffer, size_t length, int flags)
 {
     if (isConnected()) {
         size_t total_sent = 0;
-        const char* data = static_cast<const char*>(buffer);
-        
+        const char *data = static_cast<const char *>(buffer);
+
         // 循环发送，直到所有数据都发送完毕
         while (total_sent < length) {
             int ret = ::send(m_sock, data + total_sent, length - total_sent, flags);
@@ -504,6 +506,74 @@ bool Socket::cancelAccept()
 bool Socket::cancelAll()
 {
     return IOManager::GetThis()->cancelAll(m_sock);
+}
+
+ssize_t Socket::sendFile(int in_fd, off_t *offset, size_t count)
+{
+    if (!isValid()) {
+        return -1;
+    }
+    return sendfile(m_sock, in_fd, offset, count);
+}
+
+ssize_t Socket::sendLargeFile(int in_fd, off_t offset, size_t count, size_t chunk_size)
+{
+    if (!isValid()) {
+        return -1;
+    }
+
+    ssize_t total_sent = 0;
+    off_t current_offset = offset;
+    size_t remaining = count;
+
+    while (remaining > 0) {
+        size_t to_send = std::min(remaining, chunk_size);
+        ssize_t sent = sendfile(m_sock, in_fd, &current_offset, to_send);
+
+        if (sent == -1) {
+            if (errno == EINTR) {
+                continue;
+            }
+            SYLAR_LOG_ERROR(g_logger) << "sendLargeFile error: " << strerror(errno);
+            return total_sent > 0 ? total_sent : -1;
+        }
+
+        if (sent == 0) {
+            // 文件结束或连接关闭
+            break;
+        }
+
+        total_sent += sent;
+        remaining -= sent;
+
+        // 如果没有发送完整个块，说明可能遇到了EAGAIN或其他情况
+        if (sent < (ssize_t)to_send) {
+            break;
+        }
+    }
+
+    return total_sent;
+}
+
+ssize_t Socket::sendFileResume(int in_fd, off_t offset, size_t count, off_t resume_offset,
+                               size_t chunk_size)
+{
+    if (!isValid()) {
+        return -1;
+    }
+
+    // 计算实际的起始偏移量和剩余大小
+    off_t actual_offset = offset + resume_offset;
+    size_t remaining_count = count - resume_offset;
+
+    if (remaining_count <= 0) {
+        return 0; // 已经传输完成
+    }
+
+    SYLAR_LOG_INFO(g_logger) << "Resume file transfer from offset: " << actual_offset
+                             << ", remaining: " << remaining_count;
+
+    return sendLargeFile(in_fd, actual_offset, remaining_count, chunk_size);
 }
 
 void Socket::initSock()

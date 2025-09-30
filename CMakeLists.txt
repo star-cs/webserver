@@ -63,6 +63,8 @@ set(LIBS
     sqlite3
     pq
     tinyxml2
+    gtest
+    gtest_main
 )
 # sylar_add_executable(test_log "tests/core/test_log.cc" sylar "${LIBS}")
 # sylar_add_executable(test_config "tests/core/test_config.cc" sylar "${LIBS}")
@@ -91,13 +93,13 @@ set(LIBS
 # sylar_add_executable(test_http2_server "tests/net/http2/http2_server.cc" sylar "${LIBS}")
 
 # sylar_add_executable(test_mysql "tests/io/test_mysql.cc" sylar "${LIBS}")
-sylar_add_executable(test_postgresql "tests/io/test_postgresql.cc" sylar "${LIBS}")
+# sylar_add_executable(test_postgresql "tests/io/test_postgresql.cc" sylar "${LIBS}")
 
 # sylar_add_executable(test_rock "tests/net/rock/test_rock.cc" sylar "${LIBS}")
 
-sylar_add_executable(test_ws_server "tests/net/ws/test_ws_server.cc" sylar "${LIBS}")
-sylar_add_executable(test_ws_client "tests/net/ws/test_ws_client.cc" sylar "${LIBS}")
-sylar_add_executable(test_dag "tests/core/test_dag.cc" sylar "${LIBS}")
+# sylar_add_executable(test_ws_server "tests/net/ws/test_ws_server.cc" sylar "${LIBS}")
+# sylar_add_executable(test_ws_client "tests/net/ws/test_ws_client.cc" sylar "${LIBS}")
+# sylar_add_executable(test_dag "tests/core/test_dag.cc" sylar "${LIBS}")
 
 set(ORM_SRCS
     sylar/io/orm/orm.cc

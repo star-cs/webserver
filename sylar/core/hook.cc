@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <cstdarg>
 #include <sys/ioctl.h>
+#include <sys/sendfile.h>
 
 #include "sylar/core/iomanager.h"
 #include "hook.h"
@@ -39,7 +40,8 @@ static sylar::ConfigVar<int>::ptr g_tcp_connect_timeout =
     XX(fcntl)                                                                                      \
     XX(ioctl)                                                                                      \
     XX(getsockopt)                                                                                 \
-    XX(setsockopt)
+    XX(setsockopt)                                                                                 \
+    XX(sendfile)
 bool hook_init()
 {
     static bool is_inited = false;
@@ -587,5 +589,10 @@ extern "C"
             }
         }
         return setsockopt_f(sockfd, level, optname, optval, optlen);
+    }
+
+    ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
+    {
+        return do_io(out_fd, sendfile_f, "sendfile", sylar::IOManager::Event::WRITE, SO_SNDTIMEO, in_fd, offset, count);
     }
 }

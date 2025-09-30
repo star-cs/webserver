@@ -1,5 +1,10 @@
 #include "http.h"
 #include "sylar/core/util/util.h"
+#include <sys/stat.h>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
+#include <map>
 
 namespace sylar
 {
@@ -311,7 +316,8 @@ namespace http
     }
 
     HttpResponse::HttpResponse(uint8_t version, bool close)
-        : m_status(HttpStatus::OK), m_version(version), m_close(close), m_websocket(false)
+        : m_status(HttpStatus::OK), m_version(version), m_close(close), m_websocket(false),
+          m_file_size(0), m_range_start(0), m_range_end(-1)
     {
     }
 
@@ -418,6 +424,122 @@ namespace http
     std::ostream &operator<<(std::ostream &os, const HttpResponse &rsp)
     {
         return rsp.dump(os);
+    }
+
+    // 辅助函数：根据文件扩展名推断MIME类型
+    static std::string getMimeType(const std::string& file_path) {
+        size_t pos = file_path.find_last_of('.');
+        if (pos == std::string::npos) {
+            return "application/octet-stream";
+        }
+        
+        std::string ext = file_path.substr(pos + 1);
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        
+        static std::map<std::string, std::string> mime_types = {
+            {"html", "text/html"},
+            {"htm", "text/html"},
+            {"css", "text/css"},
+            {"js", "application/javascript"},
+            {"json", "application/json"},
+            {"xml", "application/xml"},
+            {"txt", "text/plain"},
+            {"jpg", "image/jpeg"},
+            {"jpeg", "image/jpeg"},
+            {"png", "image/png"},
+            {"gif", "image/gif"},
+            {"svg", "image/svg+xml"},
+            {"pdf", "application/pdf"},
+            {"zip", "application/zip"},
+            {"mp4", "video/mp4"},
+            {"mp3", "audio/mpeg"},
+            {"wav", "audio/wav"}
+        };
+        
+        auto it = mime_types.find(ext);
+        return it != mime_types.end() ? it->second : "application/octet-stream";
+    }
+
+    bool HttpResponse::setFile(const std::string& file_path, const std::string& content_type) {
+        struct stat file_stat;
+        if (stat(file_path.c_str(), &file_stat) != 0) {
+            return false;  // 文件不存在或无法访问
+        }
+        
+        if (!S_ISREG(file_stat.st_mode)) {
+            return false;  // 不是普通文件
+        }
+        
+        m_file_path = file_path;
+        m_file_size = file_stat.st_size;
+        m_range_start = 0;
+        m_range_end = m_file_size - 1;
+        
+        // 设置Content-Type
+        std::string mime_type = content_type.empty() ? getMimeType(file_path) : content_type;
+        setHeader("Content-Type", mime_type);
+        setHeader("Content-Length", std::to_string(m_file_size));
+        
+        // 清空body，因为我们将使用sendfile发送文件内容
+        m_body.clear();
+        
+        return true;
+    }
+
+    bool HttpResponse::setFileDownload(const std::string& file_path, const std::string& download_name) {
+        if (!setFile(file_path)) {
+            return false;
+        }
+        
+        std::string filename = download_name;
+        if (filename.empty()) {
+            size_t pos = file_path.find_last_of('/');
+            filename = (pos != std::string::npos) ? file_path.substr(pos + 1) : file_path;
+        }
+        
+        setHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+        return true;
+    }
+
+    bool HttpResponse::setFileRange(const std::string& file_path, off_t range_start, 
+                                   off_t range_end, const std::string& content_type) {
+        struct stat file_stat;
+        if (stat(file_path.c_str(), &file_stat) != 0) {
+            return false;
+        }
+        
+        if (!S_ISREG(file_stat.st_mode)) {
+            return false;
+        }
+        
+        m_file_path = file_path;
+        m_file_size = file_stat.st_size;
+        m_range_start = range_start;
+        m_range_end = (range_end == -1) ? m_file_size - 1 : range_end;
+        
+        // 验证范围
+        if (m_range_start < 0 || m_range_start >= m_file_size || 
+            m_range_end < m_range_start || m_range_end >= m_file_size) {
+            return false;
+        }
+        
+        off_t content_length = m_range_end - m_range_start + 1;
+        
+        // 设置HTTP状态为206 Partial Content
+        setStatus(HttpStatus::PARTIAL_CONTENT);
+        
+        // 设置Content-Type
+        std::string mime_type = content_type.empty() ? getMimeType(file_path) : content_type;
+        setHeader("Content-Type", mime_type);
+        setHeader("Content-Length", std::to_string(content_length));
+        setHeader("Content-Range", "bytes " + std::to_string(m_range_start) + "-" + 
+                  std::to_string(m_range_end) + "/" + std::to_string(m_file_size));
+        setHeader("Accept-Ranges", "bytes");
+        
+        // 清空body
+        m_body.clear();
+        
+        return true;
     }
 
 } // namespace http

@@ -366,6 +366,36 @@ public:
      */
     bool cancelAll();
 
+    /**
+     * @brief 使用sendfile发送文件
+     * @param[in] in_fd 输入文件描述符
+     * @param[in] offset 文件偏移量指针，NULL表示从当前位置开始
+     * @param[in] count 要发送的字节数
+     * @return 实际发送的字节数，-1表示出错
+     */
+    virtual ssize_t sendFile(int in_fd, off_t *offset, size_t count);
+
+    /**
+     * @brief 发送大文件，支持分块传输
+     * @param[in] in_fd 输入文件描述符
+     * @param[in] offset 起始偏移量
+     * @param[in] count 要发送的总字节数
+     * @param[in] chunk_size 每次发送的块大小，默认64KB
+     * @return 实际发送的字节数，-1表示出错
+     */
+    virtual ssize_t sendLargeFile(int in_fd, off_t offset, size_t count, size_t chunk_size = 65536);
+
+    /**
+     * @brief 断点续传发送文件
+     * @param[in] in_fd 输入文件描述符
+     * @param[in] offset 起始偏移量
+     * @param[in] count 要发送的总字节数
+     * @param[in] resume_offset 断点续传的偏移量
+     * @param[in] chunk_size 每次发送的块大小，默认64KB
+     * @return 实际发送的字节数，-1表示出错
+     */
+    virtual ssize_t sendFileResume(int in_fd, off_t offset, size_t count, off_t resume_offset, size_t chunk_size = 65536);
+
 protected:
     /**
      * @brief 初始化socket

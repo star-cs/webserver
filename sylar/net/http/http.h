@@ -660,6 +660,58 @@ namespace http
                        bool secure = false);
         void initConnection();
 
+        /**
+         * @brief 设置文件响应
+         * @param[in] file_path 文件路径
+         * @param[in] content_type 内容类型，如果为空则自动推断
+         * @return 是否设置成功
+         */
+        bool setFile(const std::string& file_path, const std::string& content_type = "");
+
+        /**
+         * @brief 设置文件下载响应
+         * @param[in] file_path 文件路径
+         * @param[in] download_name 下载文件名，如果为空则使用原文件名
+         * @return 是否设置成功
+         */
+        bool setFileDownload(const std::string& file_path, const std::string& download_name = "");
+
+        /**
+         * @brief 设置Range响应（用于断点续传）
+         * @param[in] file_path 文件路径
+         * @param[in] range_start 起始位置
+         * @param[in] range_end 结束位置（-1表示到文件末尾）
+         * @param[in] content_type 内容类型
+         * @return 是否设置成功
+         */
+        bool setFileRange(const std::string& file_path, off_t range_start, off_t range_end = -1, 
+                         const std::string& content_type = "");
+
+        /**
+         * @brief 获取文件路径
+         */
+        const std::string& getFilePath() const { return m_file_path; }
+
+        /**
+         * @brief 获取文件大小
+         */
+        off_t getFileSize() const { return m_file_size; }
+
+        /**
+         * @brief 获取Range起始位置
+         */
+        off_t getRangeStart() const { return m_range_start; }
+
+        /**
+         * @brief 获取Range结束位置
+         */
+        off_t getRangeEnd() const { return m_range_end; }
+
+        /**
+         * @brief 是否为文件响应
+         */
+        bool isFileResponse() const { return !m_file_path.empty(); }
+
     private:
         /// 响应状态
         HttpStatus m_status;
@@ -677,6 +729,12 @@ namespace http
         MapType m_headers;
 
         std::vector<std::string> m_cookies;
+
+        /// 文件响应相关成员变量
+        std::string m_file_path;    // 文件路径
+        off_t m_file_size;          // 文件大小
+        off_t m_range_start;        // Range起始位置
+        off_t m_range_end;          // Range结束位置
     };
 
     /**
