@@ -12,7 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # 公共编译选项
 add_compile_options(
     -rdynamic
-    -O3                     # O0 debug（开发），O2 release（编译会慢很多）
+    -O0                     # O0 debug（开发），O2 release（编译会慢很多）
     -ggdb
     -Wall
     -Wno-builtin-macro-redefined
@@ -65,6 +65,7 @@ set(LIBS
     tinyxml2
     gtest
     gtest_main
+    jemalloc
 )
 # sylar_add_executable(test_log "tests/core/test_log.cc" sylar "${LIBS}")
 # sylar_add_executable(test_config "tests/core/test_config.cc" sylar "${LIBS}")

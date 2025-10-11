@@ -165,8 +165,8 @@ HttpResponse::ptr HttpConnection::recvResponse(){
     HttpResponseParser::ptr parser = std::make_shared<HttpResponseParser>();
     uint64_t buff_size = HttpResponseParser::GetHttpResponseBufferSize();
     std::shared_ptr<char> buffer(
-        (char*)SYLAR_THREAD_MALLOC(buff_size + 1), [=](char* ptr){
-            SYLAR_THREAD_FREE(ptr, buff_size + 1);
+        (char*)::malloc(buff_size + 1), [=](char* ptr){
+            ::free(ptr);
         }
     );
 

@@ -17,8 +17,8 @@ namespace http
     {
         HttpRequestParser::ptr parser = std::make_shared<HttpRequestParser>();
         uint64_t buff_size = HttpRequestParser::GetHttpRequestBufferSize();
-        std::shared_ptr<char> buffer((char *)SYLAR_THREAD_MALLOC(buff_size),
-                                     [=](char *ptr) { SYLAR_THREAD_FREE(ptr, buff_size); });
+        std::shared_ptr<char> buffer((char *)::malloc(buff_size),
+                                     [=](char *ptr) { ::free(ptr); });
 
         char *data = buffer.get();
 
@@ -66,7 +66,7 @@ namespace http
                 memcpy(&body[0], data, length);
                 len = length;
             }
-            length -= offset;
+            length -= len;
             if (length > 0) {
                 if (readFixSize(&body[len], length) <= 0) {
                     close();
@@ -85,7 +85,7 @@ namespace http
         std::stringstream ss;
         ss << *rsp;
         std::string data = ss.str();
-        return m_socket->send(data.c_str(), data.size());
+        return writeFixSize(data.c_str(), data.size());
     }
 
 } // namespace http

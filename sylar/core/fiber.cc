@@ -28,7 +28,7 @@ static ConfigVar<uint32_t>::ptr g_fiber_stack_size =
 Context::Context(fn_t fn, intptr_t vp, std::size_t stackSize) : fn_(fn), vp_(vp)
 {
     stackSize_ = stackSize_ ? stackSize : g_fiber_stack_size->getValue();
-    stack_ = (char *)SYLAR_THREAD_MALLOC(stackSize_);
+    stack_ = (char *)::malloc(stackSize_);
 
     // malloc分配的堆地址，但是实际协程会模拟为栈（从高地址开始使用空间）
     ctx_ = libgo_make_fcontext(stack_ + stackSize_, stackSize_, fn_);

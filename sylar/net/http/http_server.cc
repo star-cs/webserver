@@ -43,6 +43,7 @@ namespace http
 
             rsp->setHeader("Server", getName());
 
+            SYLAR_LOG_DEBUG(g_logger) << "request: " << req->toString();
             m_dispatch->handle(req, rsp, session);
 
             // 发送rsp
